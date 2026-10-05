@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>Tronzap.Sdk</RootNamespace>
+    <AssemblyName>Tronzap.Sdk</AssemblyName>
+    <Version>1.0.0</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Tronzap.Sdk</PackageId>
+    <Title>TronZap SDK for .NET</Title>
+    <Authors>Tron Energy Market</Authors>
+    <Company>TronZap</Company>
+    <Copyright>Copyright (c) TronZap.com</Copyright>
+    <Description>Official .NET SDK for TronZap.com. The TRON Energy API lets you buy energy and bandwidth to lower USDT (TRC20) transfer fees, activate TRON addresses and run AML checks. Documentation: https://docs.tronzap.com/</Description>
+    <PackageTags>tronzap;tron;trx;tron-api;tron-energy;energy;bandwidth;usdt;trc20;aml;blockchain;crypto</PackageTags>
+    <PackageProjectUrl>https://tronzap.com/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/tron-energy-market/tronzap-sdk-csharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageReleaseNotes>First release: every TronZap API operation (services, balance, address info, energy estimate, calculation, energy, bandwidth, resource bundle and address activation transactions, transaction status, direct recharge, AML checks and history), typed requests and responses, typed exceptions, CancellationToken support and IHttpClientFactory integration. See https://github.com/tron-energy-market/tronzap-sdk-csharp/releases</PackageReleaseNotes>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Tronzap.Sdk.Tests" />
+  </ItemGroup>
+
+</Project>
