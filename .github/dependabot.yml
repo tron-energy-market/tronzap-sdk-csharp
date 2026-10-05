@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # The SDK's own dependency: raising it raises the minimum for every consumer.
+      - dependency-name: Microsoft.Extensions.Http
+    groups:
+      test-dependencies:
+        patterns: ['*']
+    commit-message:
+      prefix: chore
