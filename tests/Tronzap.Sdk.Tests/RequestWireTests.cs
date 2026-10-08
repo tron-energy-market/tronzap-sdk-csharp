@@ -180,10 +180,10 @@ public sealed class RequestWireTests
         await using var server = TestServer.Start(Reply.Ok(TransactionResult));
 
         await Client(server).CreateEnergyTransactionAsync(
-            new() { Address = Address, Energy = 65000, ExternalId = "заказ-№1 \"q\"" }, Ct);
+            new() { Address = Address, Energy = 65000, ExternalId = "pedido-año-订单-😀 \"q\"" }, Ct);
 
         RecordedRequest request = server.SingleRequest;
-        Assert.Equal("заказ-№1 \"q\"", request.Json!["external_id"]!.GetValue<string>());
+        Assert.Equal("pedido-año-订单-😀 \"q\"", request.Json!["external_id"]!.GetValue<string>());
         Assert.Equal(ExpectedSignature(request.Body), request.Header("X-Signature"));
     }
 
