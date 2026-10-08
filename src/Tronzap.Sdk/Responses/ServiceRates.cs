@@ -6,7 +6,7 @@ namespace Tronzap.Sdk.Responses;
 /// <summary>The resources on sale and their current prices.</summary>
 public sealed record ServiceRates
 {
-    /// <summary>Energy price tiers. Energy is priced per unit.</summary>
+    /// <summary>Energy price tiers. Energy is priced per 1000 units.</summary>
     public IReadOnlyList<EnergyRate> Energy { get; init; } = [];
 
     /// <summary>Bandwidth price tiers. Bandwidth is priced per 1000 units.</summary>

@@ -72,7 +72,7 @@ await Step("GetServices", async () =>
     ServiceRates services = await client.GetServicesAsync(ct);
     foreach (EnergyRate rate in services.Energy)
     {
-        Console.WriteLine($"  energy {rate.Duration}h {rate.MinEnergy}..{rate.MaxEnergy} at {Money(rate.Price)} per unit (65k = {Money(rate.Price65K)})");
+        Console.WriteLine($"  energy {rate.Duration}h {rate.MinAmount}..{rate.MaxAmount} at {Money(rate.Price)} per 1000 units (65k = {Money(rate.Price65K)})");
     }
 
     foreach (BandwidthRate rate in services.Bandwidth)
@@ -112,7 +112,7 @@ await OptionalStep("GetAddressInfo", address, async value =>
 await OptionalStep("Calculate", address, async value =>
 {
     Calculation calculation = await client.CalculateAsync(new CalculateRequest { Address = value, Energy = Energy }, ct);
-    Console.WriteLine($"  {calculation.Energy} energy for {calculation.Duration}h costs {Money(calculation.Total)}");
+    Console.WriteLine($"  {calculation.Amount} energy for {calculation.Duration}h costs {Money(calculation.Total)}");
 });
 
 string? from = Env("TRONZAP_FROM_ADDRESS");
@@ -120,7 +120,7 @@ string? to = Env("TRONZAP_TO_ADDRESS");
 await OptionalStep("EstimateEnergy", to is null ? null : from, async value =>
 {
     EnergyEstimate estimate = await client.EstimateEnergyAsync(new EstimateEnergyRequest { FromAddress = value, ToAddress = to! }, ct);
-    Console.WriteLine($"  {estimate.Energy} energy, total {Money(estimate.Total)}");
+    Console.WriteLine($"  {estimate.Amount} energy, total {Money(estimate.Total)}");
 });
 await OptionalStep("CheckTransaction", Env("TRONZAP_TRANSACTION_ID"),
     async value => Print(await client.CheckTransactionAsync(CheckTransactionRequest.ById(value), ct)));

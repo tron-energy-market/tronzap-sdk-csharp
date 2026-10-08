@@ -58,7 +58,7 @@ try
         new EnergyTransactionRequest
         {
             Address = "TRecipientAddress",
-            Energy = estimate.Energy,
+            Energy = estimate.Amount,
             Duration = 1,
             ExternalId = "order-42",
             ActivateAddress = true,
@@ -228,9 +228,10 @@ tx = await client.CreateAddressActivationTransactionAsync(new AddressActivationR
 });
 ```
 
-Цена энергии указана за единицу, цена bandwidth — за 1000 единиц: в
-`GetServicesAsync()` `EnergyRate.Price` × 65000 — это стоимость 65000 энергии, а
-345 bandwidth при `BandwidthRate.Price`, равном 1, стоят 0.345.
+Цены энергии и bandwidth указаны за 1000 единиц, поэтому стоимость равна
+цена × количество / 1000: в `GetServicesAsync()` 65000 энергии при
+`EnergyRate.Price`, равном 0.03, стоят 1.95 (столько же, сколько
+`EnergyRate.Price65K`), а 345 bandwidth при `BandwidthRate.Price`, равном 1, стоят 0.345.
 
 Сейчас API возвращает пакет ресурсов с `Service`, равным `ServiceType.Energy`, а не
 `ServiceType.ResourceBundle`. Состав покупки смотрите в `Params.Amounts`.

@@ -12,7 +12,7 @@ public sealed record DirectRechargeRate
     /// <summary>Largest energy amount this rate applies to.</summary>
     public long MaxEnergy { get; init; }
 
-    /// <summary>Price per unit of energy, in TRX.</summary>
+    /// <summary>Price per 1000 units of energy, in TRX.</summary>
     public decimal Price { get; init; }
 
     /// <summary>Price of 32 000 energy, in TRX.</summary>

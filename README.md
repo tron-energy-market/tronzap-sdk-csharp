@@ -58,7 +58,7 @@ try
         new EnergyTransactionRequest
         {
             Address = "TRecipientAddress",
-            Energy = estimate.Energy,
+            Energy = estimate.Amount,
             Duration = 1,
             ExternalId = "order-42",
             ActivateAddress = true,
@@ -226,8 +226,9 @@ tx = await client.CreateAddressActivationTransactionAsync(new AddressActivationR
 });
 ```
 
-Energy prices are per unit, bandwidth prices are per 1000 units: in
-`GetServicesAsync()`, `EnergyRate.Price` × 65000 is the cost of 65000 energy, while
+Energy and bandwidth prices are both per 1000 units, so the cost is
+price × amount / 1000: in `GetServicesAsync()`, 65000 energy at an
+`EnergyRate.Price` of 0.03 costs 1.95 (the same as `EnergyRate.Price65K`), and
 345 bandwidth at a `BandwidthRate.Price` of 1 costs 0.345.
 
 The API currently reports a resource bundle with `Service` equal to

@@ -1,3 +1,5 @@
+using System;
+
 namespace Tronzap.Sdk.Models;
 
 /// <summary>An energy price tier.</summary>
@@ -12,13 +14,15 @@ public sealed record EnergyRate
     /// <summary>Largest amount this tier applies to.</summary>
     public long MaxAmount { get; init; }
 
-    /// <summary>Smallest energy amount this tier applies to.</summary>
+    /// <summary>Deprecated: use <see cref="MinAmount"/>, which holds the same value.</summary>
+    [Obsolete("Use MinAmount.")]
     public long MinEnergy { get; init; }
 
-    /// <summary>Largest energy amount this tier applies to.</summary>
+    /// <summary>Deprecated: use <see cref="MaxAmount"/>, which holds the same value.</summary>
+    [Obsolete("Use MaxAmount.")]
     public long MaxEnergy { get; init; }
 
-    /// <summary>Price per unit of energy, in TRX.</summary>
+    /// <summary>Price per 1000 units of energy, in TRX.</summary>
     public decimal Price { get; init; }
 
     /// <summary>Price of 32 000 energy, in TRX.</summary>

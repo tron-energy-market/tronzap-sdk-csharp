@@ -1,3 +1,4 @@
+using System;
 using Tronzap.Sdk.Models;
 
 namespace Tronzap.Sdk.Responses;
@@ -14,7 +15,8 @@ public sealed record Calculation
     /// <summary>The amount priced.</summary>
     public long Amount { get; init; }
 
-    /// <summary>The energy priced.</summary>
+    /// <summary>Deprecated: use <see cref="Amount"/>, which holds the same value.</summary>
+    [Obsolete("Use Amount.")]
     public long Energy { get; init; }
 
     /// <summary>Rental duration in hours.</summary>

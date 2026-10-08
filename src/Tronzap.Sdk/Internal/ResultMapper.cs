@@ -42,10 +42,12 @@ internal static class ResultMapper
     public static EnergyEstimate EnergyEstimate(JsonElement result)
     {
         JsonElement o = Object(result, "result");
+        long amount = Int64(o, "amount");
+#pragma warning disable CS0618
         return new EnergyEstimate
         {
-            Amount = Int64(o, "amount"),
-            Energy = Int64(o, "energy"),
+            Amount = amount,
+            Energy = amount,
             Duration = Int32(o, "duration"),
             Price = Decimal(o, "price"),
             ActivationFee = Decimal(o, "activation_fee"),
@@ -54,22 +56,26 @@ internal static class ResultMapper
             ToAddress = Text(o, "to_address"),
             ContractAddress = Text(o, "contract_address"),
         };
+#pragma warning restore CS0618
     }
 
     public static Calculation Calculation(JsonElement result)
     {
         JsonElement o = Object(result, "result");
+        long amount = Int64(o, "amount");
+#pragma warning disable CS0618
         return new Calculation
         {
             Address = Text(o, "address"),
             Service = WireValues.ParseService(Text(o, "type")),
-            Amount = Int64(o, "amount"),
-            Energy = Int64(o, "energy"),
+            Amount = amount,
+            Energy = amount,
             Duration = Int32(o, "duration"),
             Price = Decimal(o, "price"),
             ActivationFee = Decimal(o, "activation_fee"),
             Total = Decimal(o, "total"),
         };
+#pragma warning restore CS0618
     }
 
     public static Transaction Transaction(JsonElement result)
@@ -163,18 +169,22 @@ internal static class ResultMapper
     private static EnergyRate EnergyRate(JsonElement element)
     {
         JsonElement o = Object(element, "energy rate");
+        long minAmount = Int64(o, "min_amount");
+        long maxAmount = Int64(o, "max_amount");
+#pragma warning disable CS0618
         return new EnergyRate
         {
             Duration = Int32(o, "duration"),
-            MinAmount = Int64(o, "min_amount"),
-            MaxAmount = Int64(o, "max_amount"),
-            MinEnergy = Int64(o, "min_energy"),
-            MaxEnergy = Int64(o, "max_energy"),
+            MinAmount = minAmount,
+            MaxAmount = maxAmount,
+            MinEnergy = minAmount,
+            MaxEnergy = maxAmount,
             Price = Decimal(o, "price"),
             Price32K = Decimal(o, "price_32k"),
             Price65K = Decimal(o, "price_65k"),
             Price131K = Decimal(o, "price_131k"),
         };
+#pragma warning restore CS0618
     }
 
     private static BandwidthRate BandwidthRate(JsonElement element)

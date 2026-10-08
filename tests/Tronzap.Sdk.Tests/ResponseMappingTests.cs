@@ -45,8 +45,10 @@ public sealed class ResponseMappingTests
             Duration = 1,
             MinAmount = 32000,
             MaxAmount = 5000000,
+#pragma warning disable CS0618
             MinEnergy = 32000,
             MaxEnergy = 5000000,
+#pragma warning restore CS0618
             Price = 0.0841m,
             Price32K = 2.69m,
             Price65K = 5.4665m,
@@ -54,6 +56,19 @@ public sealed class ResponseMappingTests
         }, energy);
         Assert.Equal(new BandwidthRate { Duration = 1, MinAmount = 300, MaxAmount = 100000, Price = 1m }, Assert.Single(services.Bandwidth));
         Assert.Equal(1.4m, services.ActivateAddress!.Price);
+    }
+
+    [Theory]
+    [InlineData("""{"energy":[{"duration":1,"min_amount":32000,"max_amount":5000000,"price":"0.0841"}]}""")]
+    [InlineData("""{"energy":[{"duration":1,"min_amount":32000,"max_amount":5000000,"min_energy":1,"max_energy":2,"price":"0.0841"}]}""")]
+    public async Task DeprecatedEnergyRangeComesFromAmounts(string result)
+    {
+        EnergyRate energy = Assert.Single((await Call(result, c => c.GetServicesAsync(Ct))).Energy);
+
+#pragma warning disable CS0618
+        Assert.Equal(32000, energy.MinEnergy);
+        Assert.Equal(5000000, energy.MaxEnergy);
+#pragma warning restore CS0618
     }
 
     [Theory]
@@ -95,7 +110,7 @@ public sealed class ResponseMappingTests
     {
         EnergyEstimate estimate = await Call(
             """
-            {"amount":65000,"energy":64285,"duration":1,"price":"5.47","activation_fee":0,"total":"5.47",
+            {"amount":65000,"energy":65000,"duration":1,"price":"5.47","activation_fee":0,"total":"5.47",
              "from_address":"TFrom","to_address":"TTo","contract_address":"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"}
             """,
             c => c.EstimateEnergyAsync(new() { FromAddress = "TFrom", ToAddress = "TTo" }, Ct));
@@ -103,7 +118,9 @@ public sealed class ResponseMappingTests
         Assert.Equal(new EnergyEstimate
         {
             Amount = 65000,
-            Energy = 64285,
+#pragma warning disable CS0618
+            Energy = 65000,
+#pragma warning restore CS0618
             Duration = 1,
             Price = 5.47m,
             ActivationFee = 0m,
@@ -122,10 +139,34 @@ public sealed class ResponseMappingTests
             c => c.CalculateAsync(new() { Address = Address, Energy = 65000 }, Ct));
 
         Assert.Equal(ServiceType.Energy, calculation.Service);
-        Assert.Equal(65000, calculation.Energy);
+        Assert.Equal(65000, calculation.Amount);
         Assert.Equal(24, calculation.Duration);
         Assert.Equal(1.4m, calculation.ActivationFee);
         Assert.Equal(6.87m, calculation.Total);
+    }
+
+    [Theory]
+    [InlineData("""{"address":"T","type":"energy","amount":65000,"duration":1,"price":5.47,"total":5.47}""")]
+    [InlineData("""{"address":"T","type":"energy","amount":65000,"energy":64285,"duration":1,"price":5.47,"total":5.47}""")]
+    public async Task DeprecatedCalculationEnergyComesFromAmount(string result)
+    {
+        Calculation calculation = await Call(result, c => c.CalculateAsync(new() { Address = Address, Energy = 65000 }, Ct));
+
+#pragma warning disable CS0618
+        Assert.Equal(65000, calculation.Energy);
+#pragma warning restore CS0618
+    }
+
+    [Theory]
+    [InlineData("""{"amount":65000,"duration":1,"price":"5.47","total":"5.47"}""")]
+    [InlineData("""{"amount":65000,"energy":64285,"duration":1,"price":"5.47","total":"5.47"}""")]
+    public async Task DeprecatedEstimateEnergyComesFromAmount(string result)
+    {
+        EnergyEstimate estimate = await Call(result, c => c.EstimateEnergyAsync(new() { FromAddress = "TFrom", ToAddress = "TTo" }, Ct));
+
+#pragma warning disable CS0618
+        Assert.Equal(65000, estimate.Energy);
+#pragma warning restore CS0618
     }
 
     [Theory]

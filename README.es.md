@@ -58,7 +58,7 @@ try
         new EnergyTransactionRequest
         {
             Address = "TRecipientAddress",
-            Energy = estimate.Energy,
+            Energy = estimate.Amount,
             Duration = 1,
             ExternalId = "order-42",
             ActivateAddress = true,
@@ -228,10 +228,10 @@ tx = await client.CreateAddressActivationTransactionAsync(new AddressActivationR
 });
 ```
 
-El precio de la energía es por unidad y el del ancho de banda por 1000 unidades:
-en `GetServicesAsync()`, `EnergyRate.Price` × 65000 es el coste de 65000 de energía,
-mientras que 345 de ancho de banda con un `BandwidthRate.Price` de 1 cuestan
-0.345.
+Los precios de la energía y del ancho de banda son por 1000 unidades, así que el
+coste es precio × cantidad / 1000: en `GetServicesAsync()`, 65000 de energía con un
+`EnergyRate.Price` de 0.03 cuestan 1.95 (lo mismo que `EnergyRate.Price65K`), y 345
+de ancho de banda con un `BandwidthRate.Price` de 1 cuestan 0.345.
 
 Actualmente la API informa un paquete de recursos con `Service` igual a
 `ServiceType.Energy`, no `ServiceType.ResourceBundle`. Consulta `Params.Amounts`

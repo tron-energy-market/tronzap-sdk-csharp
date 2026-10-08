@@ -1,3 +1,5 @@
+using System;
+
 namespace Tronzap.Sdk.Responses;
 
 /// <summary>The energy a token transfer needs and what that energy costs.</summary>
@@ -6,7 +8,8 @@ public sealed record EnergyEstimate
     /// <summary>The amount of energy the price applies to.</summary>
     public long Amount { get; init; }
 
-    /// <summary>The energy the transfer needs.</summary>
+    /// <summary>Deprecated: use <see cref="Amount"/>, which holds the same value.</summary>
+    [Obsolete("Use Amount.")]
     public long Energy { get; init; }
 
     /// <summary>Rental duration in hours.</summary>
