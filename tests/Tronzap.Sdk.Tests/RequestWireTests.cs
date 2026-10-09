@@ -38,6 +38,9 @@ public sealed class RequestWireTests
         { "AmlServices", "/v1/aml-checks", "{}", "[]" },
         { "AmlAddress", "/v1/aml-checks/new", """{"type":"address","network":"TRX","address":"TScreen"}""", AmlResult },
         { "AmlHash", "/v1/aml-checks/new", """{"type":"hash","network":"BTC","address":"bc1x","hash":"h1","direction":"withdrawal"}""", AmlResult },
+        { "AmlHashDefaultDirection", "/v1/aml-checks/new", """{"type":"hash","network":"BTC","address":"bc1x","hash":"h1","direction":"deposit"}""", AmlResult },
+        { "AmlHashInitializerDefaultDirection", "/v1/aml-checks/new", """{"type":"hash","network":"BTC","address":"bc1x","hash":"h1","direction":"deposit"}""", AmlResult },
+        { "AmlAddressWithDirection", "/v1/aml-checks/new", """{"type":"address","network":"TRX","address":"TScreen","direction":"withdrawal"}""", AmlResult },
         { "AmlStatus", "/v1/aml-checks/check", """{"id":"aml-1"}""", AmlResult },
         { "AmlHistoryDefault", "/v1/aml-checks/history", """{"page":1,"per_page":10}""", """{"page":1,"per_page":10,"total":0,"items":[]}""" },
         { "AmlHistoryFiltered", "/v1/aml-checks/history", """{"page":3,"per_page":25,"status":"completed"}""", """{"page":3,"per_page":25,"total":0,"items":[]}""" },
@@ -79,6 +82,11 @@ public sealed class RequestWireTests
         ["AmlServices"] = c => c.GetAmlServicesAsync(Ct),
         ["AmlAddress"] = c => c.CreateAmlCheckAsync(AmlCheckRequest.ForAddress("TRX", "TScreen"), Ct),
         ["AmlHash"] = c => c.CreateAmlCheckAsync(AmlCheckRequest.ForHash("BTC", "bc1x", "h1", AmlDirection.Withdrawal), Ct),
+        ["AmlHashDefaultDirection"] = c => c.CreateAmlCheckAsync(AmlCheckRequest.ForHash("BTC", "bc1x", "h1"), Ct),
+        ["AmlHashInitializerDefaultDirection"] = c => c.CreateAmlCheckAsync(
+            new() { Type = AmlCheckType.Hash, Network = "BTC", Address = "bc1x", Hash = "h1" }, Ct),
+        ["AmlAddressWithDirection"] = c => c.CreateAmlCheckAsync(
+            new() { Type = AmlCheckType.Address, Network = "TRX", Address = "TScreen", Direction = AmlDirection.Withdrawal }, Ct),
         ["AmlStatus"] = c => c.CheckAmlStatusAsync("aml-1", Ct),
         ["AmlHistoryDefault"] = c => c.GetAmlHistoryAsync(Ct),
         ["AmlHistoryFiltered"] = c => c.GetAmlHistoryAsync(new() { Page = 3, PerPage = 25, Status = AmlStatus.Completed }, Ct),
@@ -162,6 +170,26 @@ public sealed class RequestWireTests
         await Client(server).CreateAmlCheckAsync(AmlCheckRequest.ForHash("TRX", "T", "h", AmlDirection.Deposit), Ct);
 
         Assert.Equal("deposit", server.SingleRequest.Json!["direction"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task SendsDepositWhenHashCheckHasNoDirection()
+    {
+        await using var server = TestServer.Start(Reply.Ok("{}"));
+
+        await Client(server).CreateAmlCheckAsync(AmlCheckRequest.ForHash("TRX", "T", "h"), Ct);
+
+        Assert.Equal("deposit", server.SingleRequest.Json!["direction"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task OmitsDirectionWhenAddressCheckHasNone()
+    {
+        await using var server = TestServer.Start(Reply.Ok("{}"));
+
+        await Client(server).CreateAmlCheckAsync(AmlCheckRequest.ForAddress("TRX", "T"), Ct);
+
+        Assert.False(server.SingleRequest.Json!.AsObject().ContainsKey("direction"));
     }
 
     [Fact]

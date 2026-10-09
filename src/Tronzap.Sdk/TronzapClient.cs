@@ -284,6 +284,10 @@ public sealed class TronzapClient : ITronzapClient
             {
                 w.WriteString("direction", direction.ToWire());
             }
+            else if (request.Type == AmlCheckType.Hash)
+            {
+                w.WriteString("direction", AmlDirection.Deposit.ToWire());
+            }
         });
         return CallAsync("/v1/aml-checks/new", body, ResultMapper.AmlCheck, cancellationToken);
     }

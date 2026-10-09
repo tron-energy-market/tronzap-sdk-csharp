@@ -272,6 +272,14 @@ if (result.Status == AmlStatus.Completed)
 }
 ```
 
+Em uma verificação por hash, `Address` é o endereço do destinatário da
+transação, onde os fundos foram recebidos, e a direção indica de que lado você
+está: `Deposit` se os fundos chegaram ao seu endereço (`Address` é o seu
+endereço), `Withdrawal` se foi você quem enviou (`Address` é o endereço do
+destinatário externo). O risco é calculado para a contraparte: o remetente em um
+deposit, o destinatário em um withdrawal. Se você omitir a direção, o SDK envia
+`deposit`.
+
 `RiskScore` é `null` até a verificação terminar. Uma verificação concluída pode
 ter pontuação 0, o que não é o mesmo que ainda não ter pontuação.
 

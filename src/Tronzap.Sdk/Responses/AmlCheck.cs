@@ -12,7 +12,7 @@ public sealed record AmlCheck
     /// <summary>What is screened.</summary>
     public AmlCheckType Type { get; init; }
 
-    /// <summary>The screened wallet address.</summary>
+    /// <summary>The screened address; for a hash check, the recipient address of the transaction.</summary>
     public string Address { get; init; } = "";
 
     /// <summary>The screened transaction hash, or <see langword="null"/> for an address check.</summary>

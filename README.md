@@ -270,6 +270,13 @@ if (result.Status == AmlStatus.Completed)
 }
 ```
 
+For a hash check, `Address` is the recipient address of the transaction, where
+the funds were received, and the direction says which side you are on: `Deposit`
+if the funds were sent to your address (`Address` is your address), `Withdrawal`
+if you sent them (`Address` is the external recipient's address). The risk is
+scored for the counterparty: the sender of a deposit, the recipient of a
+withdrawal. If you omit the direction, the SDK sends `deposit`.
+
 `RiskScore` is `null` until screening finishes. A completed check can have a score
 of 0, which is not the same as having no score yet.
 

@@ -1,14 +1,19 @@
 namespace Tronzap.Sdk.Models;
 
-/// <summary>The direction of a screened transaction.</summary>
+/// <summary>Which side of a screened transaction you are on. The risk is scored for the counterparty.</summary>
 public enum AmlDirection
 {
     /// <summary>A value this SDK version does not recognise.</summary>
     Unknown = 0,
 
-    /// <summary>Incoming funds (<c>deposit</c>).</summary>
+    /// <summary>
+    /// The funds were sent to your address: the screened address is yours and the sender is scored (<c>deposit</c>).
+    /// </summary>
     Deposit,
 
-    /// <summary>Outgoing funds (<c>withdrawal</c>).</summary>
+    /// <summary>
+    /// You sent the funds: the screened address is the external recipient's and the recipient is scored
+    /// (<c>withdrawal</c>).
+    /// </summary>
     Withdrawal,
 }
