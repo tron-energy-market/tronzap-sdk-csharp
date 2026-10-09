@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <RootNamespace>Tronzap.Sdk</RootNamespace>
     <AssemblyName>Tronzap.Sdk</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsAotCompatible>true</IsAotCompatible>
     <EnablePackageValidation>true</EnablePackageValidation>
@@ -24,7 +24,7 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
-    <PackageReleaseNotes>First release: every TronZap API operation (services, balance, address info, energy estimate, calculation, energy, bandwidth, resource bundle and address activation transactions, transaction status, direct recharge, AML checks and history), typed requests and responses, typed exceptions, CancellationToken support and IHttpClientFactory integration. See https://github.com/tron-energy-market/tronzap-sdk-csharp/releases</PackageReleaseNotes>
+    <PackageReleaseNotes>Adds the subscriptions API (GetSubscriptionsAsync, StartSubscriptionAsync, CheckSubscriptionAsync, StopSubscriptionAsync). AML hash checks now send deposit when no direction is given. ITronzapClient gained the new methods, so custom implementations of the interface must add them. See https://github.com/tron-energy-market/tronzap-sdk-csharp/releases</PackageReleaseNotes>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>

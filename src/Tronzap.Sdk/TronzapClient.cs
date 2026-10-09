@@ -51,7 +51,7 @@ namespace Tronzap.Sdk;
 public sealed class TronzapClient : ITronzapClient
 {
     /// <summary>The SDK version, reported in the default <c>User-Agent</c> header.</summary>
-    public const string Version = "1.0.0";
+    public const string Version = "1.1.0";
 
     /// <summary>The name of the <see cref="HttpClient"/> registered by <c>AddTronzap</c> with <c>IHttpClientFactory</c>.</summary>
     public const string HttpClientName = "Tronzap.Sdk";
