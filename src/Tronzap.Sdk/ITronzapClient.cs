@@ -150,4 +150,57 @@ public interface ITronzapClient
     /// <exception cref="ArgumentException">The request is invalid.</exception>
     /// <exception cref="TronzapException">The request failed.</exception>
     Task<AmlHistory> GetAmlHistoryAsync(AmlHistoryRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the subscription plans on sale and their prices, in the order the API lists them.</summary>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The subscription plans, possibly empty.</returns>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<IReadOnlyList<SubscriptionPlan>> GetSubscriptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Subscribes an address to a plan from <see cref="GetSubscriptionsAsync"/>, which charges the plan's initial price.
+    /// An address that already has an active subscription fails with <see cref="TronzapErrorCode.InvalidTronAddress"/>.
+    /// </summary>
+    /// <param name="request">The plan, the address and the limits.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The started subscription.</returns>
+    /// <exception cref="ArgumentException">The request is invalid.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<Subscription> StartSubscriptionAsync(StartSubscriptionRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the current state of a subscription. An unknown subscription fails with
+    /// <see cref="TronzapErrorCode.TransactionNotFound"/>.
+    /// </summary>
+    /// <param name="request">The subscription ID, external ID, or both.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The subscription.</returns>
+    /// <exception cref="ArgumentException">Neither ID is set, or one is blank.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<Subscription> CheckSubscriptionAsync(SubscriptionRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stops a subscription. A subscription with a transactions limit cannot be stopped and fails with
+    /// <see cref="TronzapErrorCode.CannotStopSubscription"/>.
+    /// </summary>
+    /// <param name="request">The subscription ID, external ID, or both.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The stopped subscription.</returns>
+    /// <exception cref="ArgumentException">Neither ID is set, or one is blank.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<Subscription> StopSubscriptionAsync(SubscriptionRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the first page of your subscriptions, ten per page, newest first.</summary>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The first page of subscriptions.</returns>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<SubscriptionHistory> GetSubscriptionHistoryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Returns one page of your subscriptions, newest first.</summary>
+    /// <param name="request">The page and an optional status filter.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The page of subscriptions.</returns>
+    /// <exception cref="ArgumentException">The request is invalid.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<SubscriptionHistory> GetSubscriptionHistoryAsync(SubscriptionHistoryRequest request, CancellationToken cancellationToken = default);
 }

@@ -37,6 +37,20 @@ public sealed class ValidationTests
         { "history page zero", c => c.GetAmlHistoryAsync(new() { Page = 0 }, Ct) },
         { "history per page negative", c => c.GetAmlHistoryAsync(new() { PerPage = -5 }, Ct) },
         { "history unknown status", c => c.GetAmlHistoryAsync(new() { Status = AmlStatus.Unknown }, Ct) },
+        { "subscription without plan", c => c.StartSubscriptionAsync(new() { SubscriptionId = "", Address = "TAddress" }, Ct) },
+        { "subscription null plan", c => c.StartSubscriptionAsync(new() { SubscriptionId = null!, Address = "TAddress" }, Ct) },
+        { "subscription without address", c => c.StartSubscriptionAsync(new() { SubscriptionId = "unlimited_energy", Address = " " }, Ct) },
+        { "subscription negative duration", c => c.StartSubscriptionAsync(new() { SubscriptionId = "unlimited_energy", Address = "TAddress", DurationDays = -1 }, Ct) },
+        { "subscription negative transactions limit", c => c.StartSubscriptionAsync(new() { SubscriptionId = "unlimited_energy", Address = "TAddress", TransactionsLimit = -1 }, Ct) },
+        { "subscription blank external id", c => c.StartSubscriptionAsync(new() { SubscriptionId = "unlimited_energy", Address = "TAddress", ExternalId = "" }, Ct) },
+        { "check subscription without ids", c => c.CheckSubscriptionAsync(new SubscriptionRequest(), Ct) },
+        { "check subscription blank id", c => c.CheckSubscriptionAsync(SubscriptionRequest.ById(" "), Ct) },
+        { "stop subscription without ids", c => c.StopSubscriptionAsync(new SubscriptionRequest(), Ct) },
+        { "stop subscription blank external id", c => c.StopSubscriptionAsync(SubscriptionRequest.ByExternalId(""), Ct) },
+        { "subscription history page zero", c => c.GetSubscriptionHistoryAsync(new() { Page = 0 }, Ct) },
+        { "subscription history per page zero", c => c.GetSubscriptionHistoryAsync(new() { PerPage = 0 }, Ct) },
+        { "subscription history unknown status", c => c.GetSubscriptionHistoryAsync(new() { Status = SubscriptionStatus.Unknown }, Ct) },
+        { "subscription history undefined status", c => c.GetSubscriptionHistoryAsync(new() { Status = (SubscriptionStatus)42 }, Ct) },
     };
 
     [Theory]
@@ -66,6 +80,10 @@ public sealed class ValidationTests
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.CheckTransactionAsync(null!, Ct));
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.CreateAmlCheckAsync(null!, Ct));
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.GetAmlHistoryAsync(null!, Ct));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => client.StartSubscriptionAsync(null!, Ct));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => client.CheckSubscriptionAsync(null!, Ct));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => client.StopSubscriptionAsync(null!, Ct));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => client.GetSubscriptionHistoryAsync(null!, Ct));
         Assert.Empty(server.Requests);
     }
 
@@ -80,6 +98,15 @@ public sealed class ValidationTests
         Assert.Equal(1, history.Page);
         Assert.Equal(10, history.PerPage);
         Assert.Null(history.Status);
+        var start = new StartSubscriptionRequest { SubscriptionId = "unlimited_energy", Address = "TAddress" };
+        Assert.Equal(0, start.DurationDays);
+        Assert.Equal(0, start.TransactionsLimit);
+        Assert.False(start.ActivateAddress);
+        Assert.Null(start.ExternalId);
+        var subscriptionHistory = new SubscriptionHistoryRequest();
+        Assert.Equal(1, subscriptionHistory.Page);
+        Assert.Equal(10, subscriptionHistory.PerPage);
+        Assert.Null(subscriptionHistory.Status);
     }
 
     [Fact]

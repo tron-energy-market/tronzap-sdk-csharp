@@ -18,7 +18,9 @@ public enum TronzapErrorCode
     /// <summary>Insufficient funds: top up the account or request a smaller amount.</summary>
     InsufficientFunds = 6,
 
-    /// <summary>Invalid TRON address: it should be a valid 34-character TRON address.</summary>
+    /// <summary>
+    /// Invalid TRON address, or the address already has an active subscription. A TRON address is 34 characters long.
+    /// </summary>
     InvalidTronAddress = 10,
 
     /// <summary>Invalid energy amount.</summary>
@@ -33,7 +35,7 @@ public enum TronzapErrorCode
     /// </summary>
     TransactionNotFound = 20,
 
-    /// <summary>The subscription cannot be stopped right now.</summary>
+    /// <summary>Cannot stop subscription, for example because it has a transactions limit.</summary>
     CannotStopSubscription = 21,
 
     /// <summary>Address not activated: activate it first with an address activation transaction.</summary>

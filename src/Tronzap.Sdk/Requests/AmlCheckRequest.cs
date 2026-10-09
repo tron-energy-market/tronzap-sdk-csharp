@@ -24,7 +24,7 @@ public sealed record AmlCheckRequest
 
     /// <summary>Screens a wallet address.</summary>
     /// <param name="network">The network code, for example <c>TRX</c>.</param>
-    /// <param name="address">The wallet address.</param>
+    /// <param name="address">The address to screen.</param>
     /// <returns>The request.</returns>
     public static AmlCheckRequest ForAddress(string network, string address) =>
         new() { Type = AmlCheckType.Address, Network = network, Address = address };

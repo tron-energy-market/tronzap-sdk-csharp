@@ -137,6 +137,55 @@ internal static class ResultMapper
         };
     }
 
+    // The plans arrive as an object keyed by plan ID, in the order the API lists them.
+    public static IReadOnlyList<SubscriptionPlan> SubscriptionPlans(JsonElement result)
+    {
+        JsonElement o = Object(result, "result");
+        var plans = new List<SubscriptionPlan>();
+        foreach (JsonProperty property in o.EnumerateObject())
+        {
+            plans.Add(SubscriptionPlan(property.Name, property.Value));
+        }
+
+        return plans.AsReadOnly();
+    }
+
+    public static Subscription Subscription(JsonElement element)
+    {
+        JsonElement o = Object(element, "subscription");
+        JsonElement parameters = Field(o, "params");
+        return new Subscription
+        {
+            Id = Text(o, "id"),
+            SubscriptionId = Text(o, "subscription_id"),
+            ExternalId = OptionalText(o, "external_id"),
+            Address = Text(o, "address"),
+            Status = WireValues.ParseSubscriptionStatus(Text(o, "status")),
+            Params = IsAbsent(parameters) ? null : SubscriptionParams(Object(parameters, "params")),
+            TransactionsLimit = Int64(o, "transactions_limit"),
+            TransactionsUsed = Int64(o, "transactions_used"),
+            EnergyUsed = Int64(o, "energy_used"),
+            TotalPrice = Decimal(o, "total_price"),
+            CreatedAt = Timestamp(o, "created_at"),
+            StartedAt = Timestamp(o, "started_at"),
+            RenewedAt = Timestamp(o, "renewed_at"),
+            StoppedAt = Timestamp(o, "stopped_at"),
+            ExpireAt = Timestamp(o, "expire_at"),
+        };
+    }
+
+    public static SubscriptionHistory SubscriptionHistory(JsonElement result)
+    {
+        JsonElement o = Object(result, "result");
+        return new SubscriptionHistory
+        {
+            Page = Int32(o, "page"),
+            PerPage = Int32(o, "per_page"),
+            Total = Int32(o, "total"),
+            Items = List(o, "items", Subscription),
+        };
+    }
+
     // Older transactions carry params.amount / params.energy_amount instead of params.amounts.
     private static TransactionParams TransactionParams(JsonElement o, ServiceType service)
     {
@@ -165,6 +214,30 @@ internal static class ResultMapper
             ActivateAddress = Bool(o, "activate_address"),
         };
     }
+
+    private static SubscriptionPlan SubscriptionPlan(string subscriptionId, JsonElement element)
+    {
+        JsonElement o = Object(element, $"subscription plan {subscriptionId}");
+        return new SubscriptionPlan
+        {
+            SubscriptionId = subscriptionId,
+            Id = Int64(o, "id"),
+            Name = Text(o, "name"),
+            ActivationFee = Decimal(o, "activation_fee"),
+            InitialPrice = Decimal(o, "initial_price"),
+            Price = Decimal(o, "price"),
+            TransactionsLimit = Int64(o, "transactions_limit"),
+            DurationDays = Int32(o, "duration_days"),
+        };
+    }
+
+    private static SubscriptionParams SubscriptionParams(JsonElement o) => new()
+    {
+        Address = Text(o, "address"),
+        DurationDays = Int32(o, "duration"),
+        TransactionsLimit = Int64(o, "transactions_limit"),
+        ActivateAddress = Bool(o, "activate_address"),
+    };
 
     private static EnergyRate EnergyRate(JsonElement element)
     {

@@ -317,6 +317,66 @@ public sealed class TronzapClient : ITronzapClient
         return CallAsync("/v1/aml-checks/history", body, ResultMapper.AmlHistory, cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<SubscriptionPlan>> GetSubscriptionsAsync(CancellationToken cancellationToken = default) =>
+        CallAsync("/v1/subscriptions", EmptyBody(), ResultMapper.SubscriptionPlans, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<Subscription> StartSubscriptionAsync(StartSubscriptionRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w =>
+        {
+            w.WriteString("subscription_id", request.SubscriptionId);
+            if (request.ExternalId is not null)
+            {
+                w.WriteString("external_id", request.ExternalId);
+            }
+
+            w.WriteStartObject("params");
+            w.WriteString("address", request.Address);
+            w.WriteNumber("duration", request.DurationDays);
+            w.WriteNumber("transactions_limit", request.TransactionsLimit);
+            if (request.ActivateAddress)
+            {
+                w.WriteBoolean("activate_address", true);
+            }
+
+            w.WriteEndObject();
+        });
+        return CallAsync("/v1/subscription/start", body, ResultMapper.Subscription, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<Subscription> CheckSubscriptionAsync(SubscriptionRequest request, CancellationToken cancellationToken = default) =>
+        SubscriptionByIdAsync("/v1/subscription/check", request, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<Subscription> StopSubscriptionAsync(SubscriptionRequest request, CancellationToken cancellationToken = default) =>
+        SubscriptionByIdAsync("/v1/subscription/stop", request, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<SubscriptionHistory> GetSubscriptionHistoryAsync(CancellationToken cancellationToken = default) =>
+        GetSubscriptionHistoryAsync(new SubscriptionHistoryRequest(), cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<SubscriptionHistory> GetSubscriptionHistoryAsync(SubscriptionHistoryRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w =>
+        {
+            w.WriteNumber("page", request.Page);
+            w.WriteNumber("per_page", request.PerPage);
+            if (request.Status is { } status)
+            {
+                w.WriteString("status", status.ToWire());
+            }
+        });
+        return CallAsync("/v1/subscriptions/history", body, ResultMapper.SubscriptionHistory, cancellationToken);
+    }
+
     internal static string NormalizeBaseUrl(string? baseUrl)
     {
         string normalized = baseUrl?.Trim() ?? "";
@@ -380,6 +440,25 @@ public sealed class TronzapClient : ITronzapClient
             }
         });
         return CallAsync("/v1/transaction/new", body, ResultMapper.Transaction, cancellationToken);
+    }
+
+    private Task<Subscription> SubscriptionByIdAsync(string endpoint, SubscriptionRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w =>
+        {
+            if (request.Id is not null)
+            {
+                w.WriteString("id", request.Id);
+            }
+
+            if (request.ExternalId is not null)
+            {
+                w.WriteString("external_id", request.ExternalId);
+            }
+        });
+        return CallAsync(endpoint, body, ResultMapper.Subscription, cancellationToken);
     }
 
     private async Task<T> CallAsync<T>(string endpoint, byte[] body, Func<JsonElement, T> map, CancellationToken cancellationToken)

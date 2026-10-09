@@ -175,6 +175,11 @@ the client with a fake in your own tests.
 | `CreateAmlCheckAsync(request)` | `/v1/aml-checks/new` | Start an AML screening |
 | `CheckAmlStatusAsync(id)` | `/v1/aml-checks/check` | Status and result of an AML check |
 | `GetAmlHistoryAsync()` / `GetAmlHistoryAsync(request)` | `/v1/aml-checks/history` | Paginated AML check history |
+| `GetSubscriptionsAsync()` | `/v1/subscriptions` | Subscription plans and prices |
+| `StartSubscriptionAsync(request)` | `/v1/subscription/start` | Subscribe an address to a plan |
+| `CheckSubscriptionAsync(request)` | `/v1/subscription/check` | Status of a subscription, by id or external id |
+| `StopSubscriptionAsync(request)` | `/v1/subscription/stop` | Stop a subscription |
+| `GetSubscriptionHistoryAsync()` / `GetSubscriptionHistoryAsync(request)` | `/v1/subscriptions/history` | Paginated subscription history |
 
 Every method is asynchronous and takes an optional `CancellationToken` as its last
 parameter.
@@ -182,8 +187,9 @@ parameter.
 Parameters live in immutable request records in `Tronzap.Sdk.Requests`, set with
 object initializers; required values are `required` members. A request is
 validated before it is sent, so an invalid one raises `ArgumentException` and never
-reaches the API. Defaults match the API: `Duration` is 1 hour, and AML history
-starts at page 1 with 10 items.
+reaches the API. Defaults match the API: `Duration` is 1 hour, and AML and
+subscription history start at page 1 with 10 items. In `StartSubscriptionRequest`,
+a zero `DurationDays` or `TransactionsLimit` means no limit.
 
 Results are immutable records in `Tronzap.Sdk.Responses`. Collections are never
 `null`, and values the API may omit are nullable.
@@ -266,6 +272,43 @@ if (result.Status == AmlStatus.Completed)
 
 `RiskScore` is `null` until screening finishes. A completed check can have a score
 of 0, which is not the same as having no score yet.
+
+### Subscriptions
+
+A subscription keeps an address supplied with energy for every transaction until
+it is stopped or runs out of days or transactions. Pick a plan from
+`GetSubscriptionsAsync()` and pass its `SubscriptionId`, such as
+`"unlimited_energy"`, not its numeric `Id`:
+
+```csharp
+IReadOnlyList<SubscriptionPlan> plans = await client.GetSubscriptionsAsync();
+foreach (SubscriptionPlan plan in plans)
+{
+    Console.WriteLine($"{plan.SubscriptionId} {plan.InitialPrice} {plan.Price}");
+}
+
+Subscription subscription = await client.StartSubscriptionAsync(new StartSubscriptionRequest
+{
+    SubscriptionId = "unlimited_energy",
+    Address = "TRecipientAddress",
+    DurationDays = 30,     // 0 for no time limit
+    TransactionsLimit = 0, // 0 for no limit
+    ExternalId = "subscription-42",
+});
+
+subscription = await client.CheckSubscriptionAsync(SubscriptionRequest.ByExternalId("subscription-42"));
+
+subscription = await client.StopSubscriptionAsync(SubscriptionRequest.ById(subscription.Id));
+
+SubscriptionHistory history = await client.GetSubscriptionHistoryAsync(
+    new SubscriptionHistoryRequest { Status = SubscriptionStatus.Active });
+```
+
+Start, check and stop return the subscription with its `Params`; the history
+returns the usage counters `TransactionsUsed`, `EnergyUsed` and `TotalPrice`
+instead, with `Params` set to `null`. Starting a subscription charges the plan's
+initial price. A subscription with a transactions limit cannot be stopped
+(`TronzapErrorCode.CannotStopSubscription`).
 
 ## Error handling
 
@@ -358,11 +401,11 @@ a non-zero code is always reported as `TronzapApiException`, never as
 | 2 | `InvalidServiceOrParams` | Invalid service or parameters |
 | 5 | `WalletNotFound` | Internal wallet not found. Contact support. |
 | 6 | `InsufficientFunds` | Insufficient funds |
-| 10 | `InvalidTronAddress` | Invalid TRON address |
+| 10 | `InvalidTronAddress` | Invalid TRON address, or the address already has an active subscription |
 | 11 | `InvalidEnergyAmount` | Invalid energy amount |
 | 12 | `InvalidDuration` | Invalid duration |
 | 20 | `TransactionNotFound` | Transaction/subscription not found |
-| 21 | `CannotStopSubscription` | Cannot stop subscription |
+| 21 | `CannotStopSubscription` | Cannot stop subscription, e.g. it has a transactions limit |
 | 24 | `AddressNotActivated` | Address not activated |
 | 25 | `AddressAlreadyActivated` | Address already activated |
 | 30 | `AmlCheckNotFound` | AML check not found |

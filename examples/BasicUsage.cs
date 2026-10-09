@@ -10,11 +10,17 @@
 //   export TRONZAP_TO_ADDRESS=TRON_ADDRESS       # optional, with FROM_ADDRESS
 //   export TRONZAP_TRANSACTION_ID=id             # optional
 //   export TRONZAP_AML_CHECK_ID=id               # optional
+//   export TRONZAP_SUBSCRIPTION_ID=id            # optional
 //   dotnet run examples/BasicUsage.cs
 //
 // Setting TRONZAP_ALLOW_PURCHASES=1 additionally exercises the endpoints that create transactions and AML checks.
 // Those DEBIT THE ACCOUNT BALANCE. It is meant for verifying an integration against a development environment, and
 // it also needs TRONZAP_ADDRESS.
+//
+// Setting TRONZAP_SUBSCRIPTION_PLAN as well starts a one-day subscription to that plan for TRONZAP_ADDRESS and stops
+// it straight away. Starting one charges the plan's initial price.
+//
+//   export TRONZAP_SUBSCRIPTION_PLAN=unlimited_energy
 
 using System;
 using System.Collections.Generic;
@@ -102,6 +108,22 @@ await Step("GetAmlHistory", async () =>
     AmlHistory history = await client.GetAmlHistoryAsync(ct);
     Console.WriteLine($"  page {history.Page}, {history.Items.Count} of {history.Total} check(s)");
 });
+await Step("GetSubscriptions", async () =>
+{
+    foreach (SubscriptionPlan plan in await client.GetSubscriptionsAsync(ct))
+    {
+        Console.WriteLine($"  {plan.SubscriptionId} ({plan.Name}): activation {Money(plan.ActivationFee)}, initial {Money(plan.InitialPrice)}, {Money(plan.Price)} per transaction, limit {plan.TransactionsLimit} transaction(s), {plan.DurationDays} day(s)");
+    }
+});
+await Step("GetSubscriptionHistory", async () =>
+{
+    SubscriptionHistory history = await client.GetSubscriptionHistoryAsync(new SubscriptionHistoryRequest { PerPage = 3 }, ct);
+    Console.WriteLine($"  page {history.Page}, {history.Items.Count} of {history.Total} subscription(s)");
+    foreach (Subscription subscription in history.Items)
+    {
+        Console.WriteLine($"  {subscription.Id} {subscription.SubscriptionId} {subscription.Status}, used {subscription.TransactionsUsed} transaction(s) and {subscription.EnergyUsed} energy, charged {Money(subscription.TotalPrice)}, expires {Describe(subscription.ExpireAt)}");
+    }
+});
 
 string? address = Env("TRONZAP_ADDRESS");
 await OptionalStep("GetAddressInfo", address, async value =>
@@ -129,6 +151,8 @@ await OptionalStep("CheckAmlStatus", Env("TRONZAP_AML_CHECK_ID"), async value =>
     AmlCheck check = await client.CheckAmlStatusAsync(value, ct);
     Console.WriteLine($"  {check.Status}, risk {(check.RiskScore is { } score ? Money(score) : "not scored yet")}");
 });
+await OptionalStep("CheckSubscription", Env("TRONZAP_SUBSCRIPTION_ID"),
+    async value => PrintSubscription(await client.CheckSubscriptionAsync(SubscriptionRequest.ById(value), ct)));
 
 if (Env("TRONZAP_ALLOW_PURCHASES") != "1")
 {
@@ -169,6 +193,35 @@ else
         AmlCheck check = await client.CreateAmlCheckAsync(AmlCheckRequest.ForAddress("TRX", address), ct);
         Console.WriteLine($"  AML check {check.Id} is {check.Status}");
     });
+
+    string? subscriptionPlan = Env("TRONZAP_SUBSCRIPTION_PLAN");
+    if (subscriptionPlan is null)
+    {
+        Console.WriteLine("\nStartSubscription, StopSubscription\n  skipped: TRONZAP_SUBSCRIPTION_PLAN is not set");
+    }
+    else
+    {
+        await Step("StartSubscription, CheckSubscription, StopSubscription", async () =>
+        {
+            Subscription started = await client.StartSubscriptionAsync(new StartSubscriptionRequest
+            {
+                SubscriptionId = subscriptionPlan,
+                Address = address,
+                DurationDays = 1,
+                ExternalId = $"{runId}-subscription",
+            }, ct);
+            PrintSubscription(started);
+            try
+            {
+                PrintSubscription(await client.CheckSubscriptionAsync(SubscriptionRequest.ByExternalId($"{runId}-subscription"), ct));
+            }
+            finally
+            {
+                // Not canceled with ct: an interrupted run must still stop the subscription it started.
+                PrintSubscription(await client.StopSubscriptionAsync(SubscriptionRequest.ById(started.Id), CancellationToken.None));
+            }
+        });
+    }
 }
 
 if (failed.Count > 0)
@@ -207,6 +260,9 @@ async Task OptionalStep(string name, string? subject, Func<string, Task> call)
 
 static void Print(Transaction tx) =>
     Console.WriteLine($"  {tx.Id} {tx.Service} {tx.Status}, charged {Money(tx.Amount)}, created {Describe(tx.CreatedAt)}");
+
+static void PrintSubscription(Subscription subscription) =>
+    Console.WriteLine($"  {subscription.Id} {subscription.SubscriptionId} {subscription.Status}, address {(subscription.Address.Length > 0 ? subscription.Address : "-")}, created {Describe(subscription.CreatedAt)}, expires {Describe(subscription.ExpireAt)}, stopped {Describe(subscription.StoppedAt)}");
 
 static string Describe(Timestamp? timestamp) => timestamp switch
 {

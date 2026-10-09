@@ -176,6 +176,11 @@ sustituir el cliente por uno falso en tus propias pruebas.
 | `CreateAmlCheckAsync(request)` | `/v1/aml-checks/new` | Iniciar una verificación AML |
 | `CheckAmlStatusAsync(id)` | `/v1/aml-checks/check` | Estado y resultado de una verificación AML |
 | `GetAmlHistoryAsync()` / `GetAmlHistoryAsync(request)` | `/v1/aml-checks/history` | Historial paginado de verificaciones AML |
+| `GetSubscriptionsAsync()` | `/v1/subscriptions` | Planes de suscripción y precios |
+| `StartSubscriptionAsync(request)` | `/v1/subscription/start` | Suscribir una dirección a un plan |
+| `CheckSubscriptionAsync(request)` | `/v1/subscription/check` | Estado de una suscripción, por id o id externo |
+| `StopSubscriptionAsync(request)` | `/v1/subscription/stop` | Detener una suscripción |
+| `GetSubscriptionHistoryAsync()` / `GetSubscriptionHistoryAsync(request)` | `/v1/subscriptions/history` | Historial paginado de suscripciones |
 
 Todos los métodos son asíncronos y aceptan un `CancellationToken` opcional como
 último parámetro.
@@ -184,8 +189,9 @@ Los parámetros son records inmutables en `Tronzap.Sdk.Requests`, que se rellena
 con inicializadores de objeto; los valores obligatorios son miembros `required`.
 Una solicitud se valida antes de enviarse, así que una solicitud inválida lanza
 `ArgumentException` y nunca llega a la API. Los valores por defecto coinciden con
-la API: `Duration` es 1 hora y el historial AML empieza en la página 1 con 10
-elementos.
+la API: `Duration` es 1 hora y los historiales AML y de suscripciones empiezan
+en la página 1 con 10 elementos. En `StartSubscriptionRequest`, un `DurationDays`
+o `TransactionsLimit` igual a cero significa sin límite.
 
 Los resultados son records inmutables en `Tronzap.Sdk.Responses`. Las colecciones
 nunca son `null`, y los valores que la API puede omitir son nullable.
@@ -269,6 +275,43 @@ if (result.Status == AmlStatus.Completed)
 `RiskScore` es `null` hasta que termina la verificación. Una verificación
 completada puede tener una puntuación de 0, que no es lo mismo que no tener
 puntuación todavía.
+
+### Suscripciones
+
+Una suscripción mantiene una dirección abastecida de energía para cada transacción
+hasta que se detiene o se agotan sus días o transacciones. Elija un plan de
+`GetSubscriptionsAsync()` y pase su `SubscriptionId`, como `"unlimited_energy"`,
+no su `Id` numérico:
+
+```csharp
+IReadOnlyList<SubscriptionPlan> plans = await client.GetSubscriptionsAsync();
+foreach (SubscriptionPlan plan in plans)
+{
+    Console.WriteLine($"{plan.SubscriptionId} {plan.InitialPrice} {plan.Price}");
+}
+
+Subscription subscription = await client.StartSubscriptionAsync(new StartSubscriptionRequest
+{
+    SubscriptionId = "unlimited_energy",
+    Address = "TRecipientAddress",
+    DurationDays = 30,     // 0 para sin límite de tiempo
+    TransactionsLimit = 0, // 0 para sin límite
+    ExternalId = "subscription-42",
+});
+
+subscription = await client.CheckSubscriptionAsync(SubscriptionRequest.ByExternalId("subscription-42"));
+
+subscription = await client.StopSubscriptionAsync(SubscriptionRequest.ById(subscription.Id));
+
+SubscriptionHistory history = await client.GetSubscriptionHistoryAsync(
+    new SubscriptionHistoryRequest { Status = SubscriptionStatus.Active });
+```
+
+Iniciar, consultar y detener devuelven la suscripción con sus `Params`; el
+historial devuelve en su lugar los contadores de uso `TransactionsUsed`,
+`EnergyUsed` y `TotalPrice`, con `Params` en `null`. Iniciar una suscripción cobra
+el precio inicial del plan. Una suscripción con límite de transacciones no se
+puede detener (`TronzapErrorCode.CannotStopSubscription`).
 
 ## Gestión de errores
 
@@ -361,11 +404,11 @@ como `TronzapHttpException`.
 | 2 | `InvalidServiceOrParams` | Servicio o parámetros inválidos |
 | 5 | `WalletNotFound` | Billetera interna no encontrada. Contacta con soporte. |
 | 6 | `InsufficientFunds` | Fondos insuficientes |
-| 10 | `InvalidTronAddress` | Dirección TRON inválida |
+| 10 | `InvalidTronAddress` | Dirección TRON inválida, o la dirección ya tiene una suscripción activa |
 | 11 | `InvalidEnergyAmount` | Cantidad de energía inválida |
 | 12 | `InvalidDuration` | Duración inválida |
 | 20 | `TransactionNotFound` | Transacción/suscripción no encontrada |
-| 21 | `CannotStopSubscription` | No se puede detener la suscripción |
+| 21 | `CannotStopSubscription` | No se puede detener la suscripción, p. ej. tiene límite de transacciones |
 | 24 | `AddressNotActivated` | Dirección no activada |
 | 25 | `AddressAlreadyActivated` | Dirección ya activada |
 | 30 | `AmlCheckNotFound` | Verificación AML no encontrada |

@@ -37,6 +37,17 @@ internal static class WireValues
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
     };
 
+    public static string ToWire(this SubscriptionStatus value) => value switch
+    {
+        SubscriptionStatus.New => "new",
+        SubscriptionStatus.Pending => "pending",
+        SubscriptionStatus.Error => "error",
+        SubscriptionStatus.Active => "active",
+        SubscriptionStatus.Stopped => "stopped",
+        SubscriptionStatus.Expired => "expired",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+    };
+
     public static ServiceType ParseService(string value) => value switch
     {
         "energy" => ServiceType.Energy,
@@ -76,6 +87,17 @@ internal static class WireValues
         "completed" => AmlStatus.Completed,
         "failed" => AmlStatus.Failed,
         _ => AmlStatus.Unknown,
+    };
+
+    public static SubscriptionStatus ParseSubscriptionStatus(string value) => value switch
+    {
+        "new" => SubscriptionStatus.New,
+        "pending" => SubscriptionStatus.Pending,
+        "error" => SubscriptionStatus.Error,
+        "active" => SubscriptionStatus.Active,
+        "stopped" => SubscriptionStatus.Stopped,
+        "expired" => SubscriptionStatus.Expired,
+        _ => SubscriptionStatus.Unknown,
     };
 
     public static AmlRiskLevel ParseAmlRiskLevel(string value) => value switch

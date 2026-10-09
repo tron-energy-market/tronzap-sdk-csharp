@@ -177,6 +177,11 @@ builder.Services.AddTronzap();
 | `CreateAmlCheckAsync(request)` | `/v1/aml-checks/new` | Запустить AML-проверку |
 | `CheckAmlStatusAsync(id)` | `/v1/aml-checks/check` | Статус и результат AML-проверки |
 | `GetAmlHistoryAsync()` / `GetAmlHistoryAsync(request)` | `/v1/aml-checks/history` | История AML-проверок с пагинацией |
+| `GetSubscriptionsAsync()` | `/v1/subscriptions` | Планы подписок и цены |
+| `StartSubscriptionAsync(request)` | `/v1/subscription/start` | Подписать адрес на план |
+| `CheckSubscriptionAsync(request)` | `/v1/subscription/check` | Статус подписки по id или внешнему id |
+| `StopSubscriptionAsync(request)` | `/v1/subscription/stop` | Остановить подписку |
+| `GetSubscriptionHistoryAsync()` / `GetSubscriptionHistoryAsync(request)` | `/v1/subscriptions/history` | История подписок с пагинацией |
 
 Все методы асинхронные и последним параметром принимают необязательный
 `CancellationToken`.
@@ -185,7 +190,9 @@ builder.Services.AddTronzap();
 через инициализаторы объектов; обязательные значения — члены `required`. Запрос
 проверяется до отправки, поэтому невалидный запрос вызывает `ArgumentException` и
 никогда не доходит до API. Значения по умолчанию совпадают с API: `Duration` —
-1 час, история AML начинается со страницы 1 по 10 элементов.
+1 час, история AML и подписок начинается со страницы 1 по 10 элементов. В
+`StartSubscriptionRequest` нулевые `DurationDays` и `TransactionsLimit` означают
+отсутствие ограничения.
 
 Результаты — неизменяемые records в `Tronzap.Sdk.Responses`. Коллекции никогда не
 бывают `null`, а значения, которые API может не прислать, — nullable.
@@ -267,6 +274,43 @@ if (result.Status == AmlStatus.Completed)
 
 `RiskScore` равен `null`, пока проверка не завершится. У завершённой проверки score
 может быть равен 0, и это не то же самое, что отсутствие результата.
+
+### Подписки
+
+Подписка обеспечивает адрес энергией для каждой транзакции, пока её не
+остановят или не закончатся её дни или транзакции. Выберите план из
+`GetSubscriptionsAsync()` и передайте его `SubscriptionId`, например
+`"unlimited_energy"`, а не числовой `Id`:
+
+```csharp
+IReadOnlyList<SubscriptionPlan> plans = await client.GetSubscriptionsAsync();
+foreach (SubscriptionPlan plan in plans)
+{
+    Console.WriteLine($"{plan.SubscriptionId} {plan.InitialPrice} {plan.Price}");
+}
+
+Subscription subscription = await client.StartSubscriptionAsync(new StartSubscriptionRequest
+{
+    SubscriptionId = "unlimited_energy",
+    Address = "TRecipientAddress",
+    DurationDays = 30,     // 0 — без ограничения по времени
+    TransactionsLimit = 0, // 0 — без ограничения
+    ExternalId = "subscription-42",
+});
+
+subscription = await client.CheckSubscriptionAsync(SubscriptionRequest.ByExternalId("subscription-42"));
+
+subscription = await client.StopSubscriptionAsync(SubscriptionRequest.ById(subscription.Id));
+
+SubscriptionHistory history = await client.GetSubscriptionHistoryAsync(
+    new SubscriptionHistoryRequest { Status = SubscriptionStatus.Active });
+```
+
+Запуск, проверка и остановка возвращают подписку с её `Params`, а история
+вместо них — счётчики использования `TransactionsUsed`, `EnergyUsed` и
+`TotalPrice`, а `Params` в ней равен `null`. Запуск подписки списывает начальную
+цену плана. Подписку с лимитом транзакций остановить нельзя
+(`TronzapErrorCode.CannotStopSubscription`).
 
 ## Обработка ошибок
 
@@ -358,11 +402,11 @@ catch (TronzapNetworkException)
 | 2 | `InvalidServiceOrParams` | Неверный сервис или параметры |
 | 5 | `WalletNotFound` | Внутренний кошелёк не найден. Обратитесь в поддержку. |
 | 6 | `InsufficientFunds` | Недостаточно средств |
-| 10 | `InvalidTronAddress` | Неверный адрес TRON |
+| 10 | `InvalidTronAddress` | Неверный адрес TRON, или у адреса уже есть активная подписка |
 | 11 | `InvalidEnergyAmount` | Неверное количество энергии |
 | 12 | `InvalidDuration` | Неверная длительность |
 | 20 | `TransactionNotFound` | Транзакция/подписка не найдена |
-| 21 | `CannotStopSubscription` | Невозможно остановить подписку |
+| 21 | `CannotStopSubscription` | Невозможно остановить подписку, например, у неё есть лимит транзакций |
 | 24 | `AddressNotActivated` | Адрес не активирован |
 | 25 | `AddressAlreadyActivated` | Адрес уже активирован |
 | 30 | `AmlCheckNotFound` | AML-проверка не найдена |

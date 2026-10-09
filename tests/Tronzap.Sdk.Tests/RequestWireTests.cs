@@ -12,6 +12,7 @@ public sealed class RequestWireTests
 {
     private const string TransactionResult = """{"id":"tx-1","service":"energy","params":{"address":"T","amounts":{"energy":65000},"duration":1},"status":"new","amount":5.47}""";
     private const string AmlResult = """{"id":"aml-1","type":"address","address":"T","network":"TRX","status":"pending"}""";
+    private const string SubscriptionResult = """{"id":"sub-1","subscription_id":"unlimited_energy","status":"active"}""";
 
     public static TheoryData<string, string, string, string> Calls => new()
     {
@@ -40,6 +41,16 @@ public sealed class RequestWireTests
         { "AmlStatus", "/v1/aml-checks/check", """{"id":"aml-1"}""", AmlResult },
         { "AmlHistoryDefault", "/v1/aml-checks/history", """{"page":1,"per_page":10}""", """{"page":1,"per_page":10,"total":0,"items":[]}""" },
         { "AmlHistoryFiltered", "/v1/aml-checks/history", """{"page":3,"per_page":25,"status":"completed"}""", """{"page":3,"per_page":25,"total":0,"items":[]}""" },
+        { "Subscriptions", "/v1/subscriptions", "{}", "{}" },
+        { "StartSubscription", "/v1/subscription/start", """{"subscription_id":"unlimited_energy","external_id":"sub-1","params":{"address":"TAddress","duration":30,"transactions_limit":0,"activate_address":true}}""", SubscriptionResult },
+        { "StartSubscriptionDefaults", "/v1/subscription/start", """{"subscription_id":"unlimited_energy","params":{"address":"TAddress","duration":0,"transactions_limit":0}}""", SubscriptionResult },
+        { "StartSubscriptionLimited", "/v1/subscription/start", """{"subscription_id":"energy_pack_100","params":{"address":"TAddress","duration":5,"transactions_limit":10}}""", SubscriptionResult },
+        { "CheckSubscriptionById", "/v1/subscription/check", """{"id":"sub-1"}""", SubscriptionResult },
+        { "CheckSubscriptionByExternalId", "/v1/subscription/check", """{"external_id":"ext-1"}""", SubscriptionResult },
+        { "StopSubscription", "/v1/subscription/stop", """{"id":"sub-1","external_id":"ext-1"}""", SubscriptionResult },
+        { "StopSubscriptionByExternalId", "/v1/subscription/stop", """{"external_id":"ext-1"}""", SubscriptionResult },
+        { "SubscriptionHistoryDefault", "/v1/subscriptions/history", """{"page":1,"per_page":10}""", """{"page":1,"per_page":10,"total":0,"items":[]}""" },
+        { "SubscriptionHistoryFiltered", "/v1/subscriptions/history", """{"page":2,"per_page":50,"status":"active"}""", """{"page":2,"per_page":50,"total":0,"items":[]}""" },
     };
 
     private static readonly Dictionary<string, Func<TronzapClient, Task>> Invocations = new()
@@ -71,6 +82,18 @@ public sealed class RequestWireTests
         ["AmlStatus"] = c => c.CheckAmlStatusAsync("aml-1", Ct),
         ["AmlHistoryDefault"] = c => c.GetAmlHistoryAsync(Ct),
         ["AmlHistoryFiltered"] = c => c.GetAmlHistoryAsync(new() { Page = 3, PerPage = 25, Status = AmlStatus.Completed }, Ct),
+        ["Subscriptions"] = c => c.GetSubscriptionsAsync(Ct),
+        ["StartSubscription"] = c => c.StartSubscriptionAsync(
+            new() { SubscriptionId = "unlimited_energy", Address = "TAddress", DurationDays = 30, ExternalId = "sub-1", ActivateAddress = true }, Ct),
+        ["StartSubscriptionDefaults"] = c => c.StartSubscriptionAsync(new() { SubscriptionId = "unlimited_energy", Address = "TAddress" }, Ct),
+        ["StartSubscriptionLimited"] = c => c.StartSubscriptionAsync(
+            new() { SubscriptionId = "energy_pack_100", Address = "TAddress", DurationDays = 5, TransactionsLimit = 10 }, Ct),
+        ["CheckSubscriptionById"] = c => c.CheckSubscriptionAsync(SubscriptionRequest.ById("sub-1"), Ct),
+        ["CheckSubscriptionByExternalId"] = c => c.CheckSubscriptionAsync(SubscriptionRequest.ByExternalId("ext-1"), Ct),
+        ["StopSubscription"] = c => c.StopSubscriptionAsync(new() { Id = "sub-1", ExternalId = "ext-1" }, Ct),
+        ["StopSubscriptionByExternalId"] = c => c.StopSubscriptionAsync(SubscriptionRequest.ByExternalId("ext-1"), Ct),
+        ["SubscriptionHistoryDefault"] = c => c.GetSubscriptionHistoryAsync(Ct),
+        ["SubscriptionHistoryFiltered"] = c => c.GetSubscriptionHistoryAsync(new() { Page = 2, PerPage = 50, Status = SubscriptionStatus.Active }, Ct),
     };
 
     [Theory]
@@ -111,6 +134,22 @@ public sealed class RequestWireTests
         await using var server = TestServer.Start(Reply.Ok("{}"));
 
         await Client(server).GetAmlHistoryAsync(new() { Status = status }, Ct);
+
+        Assert.Equal(wire, server.SingleRequest.Json!["status"]!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData(SubscriptionStatus.New, "new")]
+    [InlineData(SubscriptionStatus.Pending, "pending")]
+    [InlineData(SubscriptionStatus.Error, "error")]
+    [InlineData(SubscriptionStatus.Active, "active")]
+    [InlineData(SubscriptionStatus.Stopped, "stopped")]
+    [InlineData(SubscriptionStatus.Expired, "expired")]
+    public async Task SendsEverySubscriptionStatusFilter(SubscriptionStatus status, string wire)
+    {
+        await using var server = TestServer.Start(Reply.Ok("{}"));
+
+        await Client(server).GetSubscriptionHistoryAsync(new() { Status = status }, Ct);
 
         Assert.Equal(wire, server.SingleRequest.Json!["status"]!.GetValue<string>());
     }

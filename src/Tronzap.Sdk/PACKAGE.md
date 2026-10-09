@@ -50,7 +50,7 @@ builder.Services.AddTronzap(options =>
 
 - Every TronZap API operation: services and prices, balance, address info, energy estimate, price calculation,
   energy, bandwidth, resource bundle and address activation transactions, transaction status, direct recharge,
-  AML checks and history.
+  AML checks and history, subscriptions and their history.
 - Typed, immutable request and response records; collections are never `null`.
 - `async` methods that all take a `CancellationToken`.
 - Typed exceptions: `TronzapApiException` carries the API error code, error key, request ID, HTTP status and

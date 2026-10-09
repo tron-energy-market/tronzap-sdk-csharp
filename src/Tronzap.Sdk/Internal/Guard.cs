@@ -31,6 +31,14 @@ internal static class Guard
         }
     }
 
+    public static void NonNegative(long value, string name)
+    {
+        if (value < 0)
+        {
+            throw new ArgumentOutOfRangeException(name, value, $"{name} must not be negative.");
+        }
+    }
+
     public static void Defined<TEnum>(TEnum value, string name)
         where TEnum : struct, Enum
     {

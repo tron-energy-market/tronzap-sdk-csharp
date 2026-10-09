@@ -372,6 +372,158 @@ public sealed class ResponseMappingTests
     }
 
     [Fact]
+    public async Task MapsSubscriptionPlansInApiOrder()
+    {
+        var plans = await Call(
+            """
+            {
+              "unlimited_energy":{"id":8,"name":"Unlimited Energy","activation_fee":0,"initial_price":8,"price":2.8,"transactions_limit":0,"duration_days":0},
+              "energy_pack_100":{"id":2,"name":"Energy Pack 100","activation_fee":"2.0","initial_price":10,"price":5,"transactions_limit":10,"duration_days":5}
+            }
+            """,
+            c => c.GetSubscriptionsAsync(Ct));
+
+        Assert.Equal(2, plans.Count);
+        Assert.Equal(new SubscriptionPlan
+        {
+            SubscriptionId = "unlimited_energy",
+            Id = 8,
+            Name = "Unlimited Energy",
+            ActivationFee = 0m,
+            InitialPrice = 8m,
+            Price = 2.8m,
+            TransactionsLimit = 0,
+            DurationDays = 0,
+        }, plans[0]);
+        Assert.Equal("energy_pack_100", plans[1].SubscriptionId);
+        Assert.Equal(2, plans[1].Id);
+        Assert.Equal(2m, plans[1].ActivationFee);
+        Assert.Equal(10, plans[1].TransactionsLimit);
+        Assert.Equal(5, plans[1].DurationDays);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    public async Task EmptySubscriptionPlans(string result)
+    {
+        var plans = await Call(result, c => c.GetSubscriptionsAsync(Ct));
+
+        Assert.Empty(plans);
+    }
+
+    [Theory]
+    [InlineData("\"unlimited_energy\"")]
+    [InlineData("42")]
+    [InlineData("[{\"id\":8}]")]
+    public async Task UnexpectedSubscriptionPlansAreInvalidResponse(string result)
+    {
+        await using var server = TestServer.Start(Reply.Ok(result));
+
+        await Assert.ThrowsAsync<Exceptions.TronzapInvalidResponseException>(() => Client(server).GetSubscriptionsAsync(Ct));
+    }
+
+    [Fact]
+    public async Task MapsStartedSubscription()
+    {
+        Subscription subscription = await Call(
+            """
+            {"id":"01m4e1z3q0r7x225zc6p63m5ey","subscription_id":"unlimited_energy","created_at":"2026-10-08T15:26:32+00:00",
+             "expire_at":"2026-11-07T15:26:32+00:00","address":"TAddress","status":"active","external_id":"sub-1",
+             "params":{"address":"TAddress","duration":30,"transactions_limit":0,"activate_address":false}}
+            """,
+            c => c.StartSubscriptionAsync(new() { SubscriptionId = "unlimited_energy", Address = "TAddress", DurationDays = 30, ExternalId = "sub-1" }, Ct));
+
+        Assert.Equal("01m4e1z3q0r7x225zc6p63m5ey", subscription.Id);
+        Assert.Equal("unlimited_energy", subscription.SubscriptionId);
+        Assert.Equal("sub-1", subscription.ExternalId);
+        Assert.Equal("TAddress", subscription.Address);
+        Assert.Equal(SubscriptionStatus.Active, subscription.Status);
+        Assert.Equal(new SubscriptionParams { Address = "TAddress", DurationDays = 30, TransactionsLimit = 0, ActivateAddress = false }, subscription.Params);
+        Assert.Equal(new DateTimeOffset(2026, 10, 8, 15, 26, 32, TimeSpan.Zero), subscription.CreatedAt!.Value);
+        Assert.Equal(new DateTimeOffset(2026, 11, 7, 15, 26, 32, TimeSpan.Zero), subscription.ExpireAt!.Value);
+        Assert.Null(subscription.StartedAt);
+        Assert.Null(subscription.StoppedAt);
+        Assert.Equal(0m, subscription.TotalPrice);
+    }
+
+    [Fact]
+    public async Task MapsStoppedSubscriptionWithoutAddressAndExpiry()
+    {
+        Subscription subscription = await Call(
+            """
+            {"id":"01m4e1z3q0r7x225zc6p63m5ey","subscription_id":"unlimited_energy","created_at":"2026-10-08T15:26:32+00:00",
+             "stopped_at":"2026-10-08T15:28:44+00:00","status":"stopped","external_id":null,
+             "params":{"address":"TAddress","duration":30,"transactions_limit":0,"activate_address":false,"future_field":1}}
+            """,
+            c => c.StopSubscriptionAsync(SubscriptionRequest.ById("01m4e1z3q0r7x225zc6p63m5ey"), Ct));
+
+        Assert.Equal(SubscriptionStatus.Stopped, subscription.Status);
+        Assert.Null(subscription.ExternalId);
+        Assert.Equal("", subscription.Address);
+        Assert.Null(subscription.ExpireAt);
+        Assert.Equal(new DateTimeOffset(2026, 10, 8, 15, 28, 44, TimeSpan.Zero), subscription.StoppedAt!.Value);
+        Assert.Equal("TAddress", subscription.Params!.Address);
+    }
+
+    [Fact]
+    public async Task MapsSubscriptionHistory()
+    {
+        SubscriptionHistory history = await Call(
+            """
+            {"page":1,"per_page":10,"total":1,"items":[{
+              "id":"01m4e1z3q0r7x225zc6p63m5ey","status":"active","subscription_id":"unlimited_energy","address":"TAddress",
+              "transactions_limit":0,"transactions_used":4,"energy_used":262000,"total_price":13.6,
+              "started_at":"2026-10-08T15:26:33+00:00","renewed_at":"2026-10-08T15:27:35+00:00","stopped_at":null,
+              "expire_at":"2026-11-07T15:26:32+00:00","created_at":"2026-10-08T15:26:32+00:00"}]}
+            """,
+            c => c.GetSubscriptionHistoryAsync(Ct));
+
+        Assert.Equal(1, history.Page);
+        Assert.Equal(10, history.PerPage);
+        Assert.Equal(1, history.Total);
+        Subscription item = Assert.Single(history.Items);
+        Assert.Equal(SubscriptionStatus.Active, item.Status);
+        Assert.Equal(0, item.TransactionsLimit);
+        Assert.Equal(4, item.TransactionsUsed);
+        Assert.Equal(262000, item.EnergyUsed);
+        Assert.Equal(13.6m, item.TotalPrice);
+        Assert.Null(item.Params);
+        Assert.Null(item.ExternalId);
+        Assert.Equal(new DateTimeOffset(2026, 10, 8, 15, 26, 33, TimeSpan.Zero), item.StartedAt!.Value);
+        Assert.Equal(new DateTimeOffset(2026, 10, 8, 15, 27, 35, TimeSpan.Zero), item.RenewedAt!.Value);
+        Assert.Null(item.StoppedAt);
+    }
+
+    [Fact]
+    public async Task ReadsSubscriptionTotalPriceAsString()
+    {
+        SubscriptionHistory history = await Call(
+            """{"page":1,"per_page":10,"total":1,"items":[{"id":"sub-1","total_price":"8.00"}]}""",
+            c => c.GetSubscriptionHistoryAsync(Ct));
+
+        Assert.Equal(8m, Assert.Single(history.Items).TotalPrice);
+    }
+
+    [Theory]
+    [InlineData("new", SubscriptionStatus.New)]
+    [InlineData("pending", SubscriptionStatus.Pending)]
+    [InlineData("error", SubscriptionStatus.Error)]
+    [InlineData("active", SubscriptionStatus.Active)]
+    [InlineData("stopped", SubscriptionStatus.Stopped)]
+    [InlineData("expired", SubscriptionStatus.Expired)]
+    [InlineData("paused", SubscriptionStatus.Unknown)]
+    [InlineData("", SubscriptionStatus.Unknown)]
+    public async Task MapsSubscriptionStatus(string wire, SubscriptionStatus expected)
+    {
+        Subscription subscription = await Call(
+            $$"""{"id":"sub-1","status":"{{wire}}"}""",
+            c => c.CheckSubscriptionAsync(SubscriptionRequest.ById("sub-1"), Ct));
+
+        Assert.Equal(expected, subscription.Status);
+    }
+
+    [Fact]
     public async Task ReadsScalarsOfOtherTypesAsText()
     {
         Transaction tx = await Call(
