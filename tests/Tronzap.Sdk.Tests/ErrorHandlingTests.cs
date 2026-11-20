@@ -72,6 +72,14 @@ public sealed class ErrorHandlingTests
     [InlineData(30, TronzapErrorCode.AmlCheckNotFound)]
     [InlineData(35, TronzapErrorCode.ServiceNotAvailable)]
     [InlineData(50, TronzapErrorCode.InvalidBandwidthAmount)]
+    [InlineData(90, TronzapErrorCode.BulkNotFound)]
+    [InlineData(91, TronzapErrorCode.BulkExpired)]
+    [InlineData(92, TronzapErrorCode.BulkPriceChanged)]
+    [InlineData(93, TronzapErrorCode.BulkTooManyItems)]
+    [InlineData(94, TronzapErrorCode.BulkNoValidItems)]
+    [InlineData(95, TronzapErrorCode.BulkResourceNotSupported)]
+    [InlineData(96, TronzapErrorCode.PayloadTooLarge)]
+    [InlineData(429, TronzapErrorCode.RateLimited)]
     [InlineData(500, TronzapErrorCode.InternalServerError)]
     [InlineData(999, TronzapErrorCode.Unknown)]
     [InlineData(-3, TronzapErrorCode.Unknown)]
@@ -203,6 +211,119 @@ public sealed class ErrorHandlingTests
         var e = await Fails<TronzapApiException>(Reply.Error(429, 2, "Slow down"));
 
         Assert.Equal(HttpStatusCode.TooManyRequests, e.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApiRateLimitReadsRetryAfterHeader()
+    {
+        Reply reply = Reply.Raw(429, """{"code":429,"error":"Too many requests","key":"rate_limited","retry_after":7}""");
+        reply.Headers["Retry-After"] = "30";
+
+        var e = await Fails<TronzapApiException>(reply);
+
+        Assert.Equal(TronzapErrorCode.RateLimited, e.ErrorCode);
+        Assert.Equal(TimeSpan.FromSeconds(30), e.RetryAfter);
+    }
+
+    [Fact]
+    public async Task ApiRateLimitReadsRetryAfterDate()
+    {
+        Reply reply = Reply.Raw(429, """{"code":429,"error":"Too many requests"}""");
+        reply.Headers["Retry-After"] = DateTimeOffset.UtcNow.AddMinutes(2).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+
+        var e = await Fails<TronzapApiException>(reply);
+
+        Assert.InRange(e.RetryAfter!.Value, TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(121));
+    }
+
+    [Fact]
+    public async Task RetryAfterDateInThePastIsZero()
+    {
+        Reply reply = Reply.Raw(429, """{"code":429,"error":"Too many requests"}""");
+        reply.Headers["Retry-After"] = DateTimeOffset.UtcNow.AddMinutes(-2).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+
+        var e = await Fails<TronzapApiException>(reply);
+
+        Assert.Equal(TimeSpan.Zero, e.RetryAfter);
+    }
+
+    [Theory]
+    [InlineData("", "7", 7)]
+    [InlineData("soon", "7", 7)]
+    [InlineData("99999999999999999999", "7", 7)]
+    [InlineData("", "0", 0)]
+    public async Task RetryAfterFallsBackToTheField(string header, string field, int seconds)
+    {
+        Reply reply = Reply.Raw(429, $$"""{"code":429,"error":"Too many requests","retry_after":{{field}}}""");
+        if (header.Length > 0)
+        {
+            reply.Headers["Retry-After"] = header;
+        }
+
+        var e = await Fails<TronzapApiException>(reply);
+
+        Assert.Equal(TimeSpan.FromSeconds(seconds), e.RetryAfter);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("1.5")]
+    [InlineData("\"7\"")]
+    [InlineData("null")]
+    [InlineData("99999999999999")]
+    public async Task InvalidRetryAfterFieldIsIgnored(string field)
+    {
+        var e = await Fails<TronzapApiException>(Reply.Raw(429, $$"""{"code":429,"error":"Too many requests","retry_after":{{field}}}"""));
+
+        Assert.Null(e.RetryAfter);
+    }
+
+    [Fact]
+    public async Task ApiErrorWithoutRetryAfterHasNone()
+    {
+        var e = await Fails<TronzapApiException>(Reply.Error(200, 6, "Insufficient funds"));
+
+        Assert.Null(e.RetryAfter);
+        Assert.Null(e.Result);
+    }
+
+    [Fact]
+    public async Task ServerErrorKeepsRetryAfter()
+    {
+        Reply reply = Reply.Raw(503, "<html>maintenance</html>", "text/html");
+        reply.Headers["Retry-After"] = "120";
+
+        var e = await Fails<TronzapServerException>(reply);
+
+        Assert.Equal(TimeSpan.FromSeconds(120), e.RetryAfter);
+    }
+
+    [Fact]
+    public async Task HttpErrorReadsRetryAfterField()
+    {
+        var e = await Fails<TronzapHttpException>(Reply.Raw(418, """{"code":0,"retry_after":5}"""));
+
+        Assert.IsType<TronzapHttpException>(e);
+        Assert.Equal(TimeSpan.FromSeconds(5), e.RetryAfter);
+    }
+
+    [Fact]
+    public async Task ApiErrorKeepsResult()
+    {
+        var e = await Fails<TronzapApiException>(
+            Reply.Raw(200, """{"code":85,"error":"No quote","result":{"min_amount":"10.5","pairs":[1,2]}}"""));
+
+        Assert.Equal(85, e.Code);
+        Assert.Equal("10.5", e.Result!.Value.GetProperty("min_amount").GetString());
+        Assert.Equal(2, e.Result!.Value.GetProperty("pairs").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task ApiErrorWithNullResultHasNone()
+    {
+        var e = await Fails<TronzapApiException>(Reply.Raw(200, """{"code":6,"error":"Insufficient funds","result":null}"""));
+
+        Assert.Null(e.Result);
     }
 
     [Theory]

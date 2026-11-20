@@ -11,10 +11,21 @@ public class TronzapHttpException : TronzapException
     /// <param name="statusCode">The HTTP status of the response.</param>
     /// <param name="responseBody">The raw response body.</param>
     public TronzapHttpException(string message, HttpStatusCode statusCode, string responseBody)
+        : this(message, statusCode, responseBody, null)
+    {
+    }
+
+    /// <summary>Creates an exception.</summary>
+    /// <param name="message">The error message.</param>
+    /// <param name="statusCode">The HTTP status of the response.</param>
+    /// <param name="responseBody">The raw response body.</param>
+    /// <param name="retryAfter">How long the server asked to wait, or <see langword="null"/>.</param>
+    public TronzapHttpException(string message, HttpStatusCode statusCode, string responseBody, TimeSpan? retryAfter)
         : base(message)
     {
         StatusCode = statusCode;
         ResponseBody = responseBody ?? "";
+        RetryAfter = retryAfter;
     }
 
     /// <summary>Creates an exception.</summary>
@@ -45,4 +56,10 @@ public class TronzapHttpException : TronzapException
 
     /// <summary>The raw response body.</summary>
     public string ResponseBody { get; }
+
+    /// <summary>
+    /// How long to wait before retrying, from the <c>Retry-After</c> header (seconds or an HTTP date) or the
+    /// <c>retry_after</c> field, or <see langword="null"/> when the server sent neither.
+    /// </summary>
+    public TimeSpan? RetryAfter { get; }
 }

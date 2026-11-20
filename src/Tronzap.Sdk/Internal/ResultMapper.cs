@@ -186,6 +186,72 @@ internal static class ResultMapper
         };
     }
 
+    public static BulkCalculation BulkCalculation(JsonElement element)
+    {
+        JsonElement o = Object(element, "bulk calculation");
+        return new BulkCalculation
+        {
+            Id = Text(o, "id"),
+            Status = WireValues.ParseBulkStatus(Text(o, "status")),
+            Resource = Text(o, "resource"),
+            Duration = Int32(o, "duration"),
+            TotalAmount = Decimal(o, "total_amount"),
+            Accepted = Int32(o, "accepted"),
+            RejectedCount = Int32(o, "rejected_count"),
+            Rejected = BulkRejectedRows(o),
+            ExpiresAt = Timestamp(o, "expires_at"),
+        };
+    }
+
+    public static IReadOnlyList<BulkRejectedRow> BulkRejectedRows(JsonElement o) => List(o, "rejected", BulkRejectedRow);
+
+    public static BulkOrder BulkOrder(JsonElement element)
+    {
+        JsonElement o = Object(element, "bulk order");
+        return new BulkOrder
+        {
+            Id = Text(o, "id"),
+            ExternalId = OptionalText(o, "external_id"),
+            Status = WireValues.ParseBulkStatus(Text(o, "status")),
+            Resource = Text(o, "resource"),
+            Duration = Int32(o, "duration"),
+            Force = Bool(o, "force"),
+            MaxPriceIncrease = Int32(o, "max_price_increase"),
+            WebhookUrl = OptionalText(o, "webhook_url"),
+            Total = Int32(o, "total"),
+            Processed = Int32(o, "processed"),
+            Delivered = Int32(o, "delivered"),
+            Failed = Int32(o, "failed"),
+            InReview = Int32(o, "in_review"),
+            Skipped = Int32(o, "skipped"),
+            SkippedByReason = Int32Map(o, "skipped_by_reason"),
+            RejectedCount = Int32(o, "rejected_count"),
+            TotalAmount = Decimal(o, "total_amount"),
+            ChargedAmount = Decimal(o, "charged_amount"),
+            CreatedAt = Timestamp(o, "created_at"),
+            StartedAt = Timestamp(o, "started_at"),
+            FinalizedAt = Timestamp(o, "finalized_at"),
+        };
+    }
+
+    public static BulkHistory BulkHistory(JsonElement result)
+    {
+        JsonElement o = Object(result, "result");
+        return new BulkHistory
+        {
+            Page = Int32(o, "page"),
+            PerPage = Int32(o, "per_page"),
+            Total = Int32(o, "total"),
+            Items = List(o, "items", BulkOrder),
+        };
+    }
+
+    private static BulkRejectedRow BulkRejectedRow(JsonElement element)
+    {
+        JsonElement o = Object(element, "rejected row");
+        return new BulkRejectedRow { Row = Int32(o, "row"), Address = Text(o, "address"), Reason = Text(o, "reason") };
+    }
+
     // Older transactions carry params.amount / params.energy_amount instead of params.amounts.
     private static TransactionParams TransactionParams(JsonElement o, ServiceType service)
     {

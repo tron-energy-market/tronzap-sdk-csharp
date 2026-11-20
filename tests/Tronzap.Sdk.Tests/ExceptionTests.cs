@@ -58,5 +58,20 @@ public sealed class ExceptionTests
         Assert.Equal("", server.ResponseBody);
         Assert.Equal("", invalid.ResponseBody);
         Assert.Null(new TronzapRateLimitException().RetryAfter);
+        Assert.Equal(TimeSpan.FromSeconds(3), new TronzapServerException("s", HttpStatusCode.ServiceUnavailable, "", TimeSpan.FromSeconds(3)).RetryAfter);
+        Assert.Null(server.RetryAfter);
+    }
+
+    [Fact]
+    public void BulkExceptionsHaveTheirCodeAndEmptyData()
+    {
+        Assert.Equal(TronzapErrorCode.BulkPriceChanged, new TronzapBulkPriceChangedException().ErrorCode);
+        Assert.Equal("", new TronzapBulkPriceChangedException().Calculation.Id);
+        Assert.Equal("", new TronzapBulkPriceChangedException("m", null).Calculation.Id);
+        Assert.Equal(TronzapErrorCode.BulkNoValidItems, new TronzapBulkNoValidItemsException().ErrorCode);
+        Assert.Empty(new TronzapBulkNoValidItemsException().Rejected);
+        Assert.Empty(new TronzapBulkNoValidItemsException("m", null).Rejected);
+        Assert.Null(new TronzapApiException().Result);
+        Assert.Null(new TronzapApiException().RetryAfter);
     }
 }

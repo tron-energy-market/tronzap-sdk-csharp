@@ -50,11 +50,12 @@ builder.Services.AddTronzap(options =>
 
 - Every TronZap API operation: services and prices, balance, address info, energy estimate, price calculation,
   energy, bandwidth, resource bundle and address activation transactions, transaction status, direct recharge,
-  AML checks and history, subscriptions and their history.
+  AML checks and history, subscriptions and their history, and bulk energy orders for up to 10 000 addresses with
+  their CSV report and webhook signature check.
 - Typed, immutable request and response records; collections are never `null`.
 - `async` methods that all take a `CancellationToken`.
-- Typed exceptions: `TronzapApiException` carries the API error code, error key, request ID, HTTP status and
-  response body.
+- Typed exceptions: `TronzapApiException` carries the API error code, error key, request ID, HTTP status,
+  response body, the `result` sent with the error and the `Retry-After` delay.
 - Works with a shared `HttpClient`, your own `HttpClient`, or `IHttpClientFactory`. No ASP.NET Core dependency.
 
 See the [README on GitHub](https://github.com/tron-energy-market/tronzap-sdk-csharp#readme) for configuration,

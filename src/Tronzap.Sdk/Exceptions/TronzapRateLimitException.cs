@@ -3,7 +3,13 @@ using System.Net;
 
 namespace Tronzap.Sdk.Exceptions;
 
-/// <summary>The API answered with HTTP 429: too many requests. Back off and retry.</summary>
+/// <summary>
+/// HTTP 429 without an API payload, such as one from a proxy: too many requests. Back off and retry.
+/// </summary>
+/// <remarks>
+/// A rate limit reported by the API itself arrives as a <see cref="TronzapApiException"/> with
+/// <see cref="TronzapErrorCode.RateLimited"/>. Both carry the wait in <c>RetryAfter</c>.
+/// </remarks>
 public class TronzapRateLimitException : TronzapHttpException
 {
     /// <summary>Creates an exception.</summary>
@@ -12,9 +18,8 @@ public class TronzapRateLimitException : TronzapHttpException
     /// <param name="responseBody">The raw response body.</param>
     /// <param name="retryAfter">How long the API asked to wait, or <see langword="null"/>.</param>
     public TronzapRateLimitException(string message, HttpStatusCode statusCode, string responseBody, TimeSpan? retryAfter)
-        : base(message, statusCode, responseBody)
+        : base(message, statusCode, responseBody, retryAfter)
     {
-        RetryAfter = retryAfter;
     }
 
     /// <summary>Creates an exception.</summary>
@@ -36,7 +41,4 @@ public class TronzapRateLimitException : TronzapHttpException
         : base(message, innerException)
     {
     }
-
-    /// <summary>How long the API asked to wait before retrying, from the <c>Retry-After</c> header, or <see langword="null"/>.</summary>
-    public TimeSpan? RetryAfter { get; }
 }

@@ -38,20 +38,15 @@ internal static class ResponseDecoder
                 int? code = Code(root);
                 if (code != 0)
                 {
-                    throw new TronzapApiException(
-                        StringField(root, "error") ?? UnknownApiError,
-                        code ?? 1,
-                        StringField(root, "key"),
-                        StringField(root, "request_id"),
-                        status,
-                        Text(body));
+                    throw ApiError(root, code ?? 1, status, Text(body), retryAfter ?? RetryAfterField(root));
                 }
             }
 
             int statusCode = (int)status;
             if (statusCode is < 200 or > 299)
             {
-                throw HttpError(status, Text(body), retryAfter);
+                JsonElement root = document?.RootElement ?? default;
+                throw HttpError(status, Text(body), retryAfter ?? RetryAfterField(root));
             }
 
             if (document is null)
@@ -76,6 +71,38 @@ internal static class ResponseDecoder
         }
     }
 
+    private static TronzapApiException ApiError(JsonElement root, int code, HttpStatusCode status, string body, TimeSpan? retryAfter)
+    {
+        string message = StringField(root, "error") ?? UnknownApiError;
+        string? key = StringField(root, "key");
+        string? requestId = StringField(root, "request_id");
+        JsonElement result = JsonValues.Field(root, "result");
+        if (JsonValues.IsAbsent(result))
+        {
+            return new TronzapApiException(message, code, key, requestId, status, body, null, retryAfter);
+        }
+
+        try
+        {
+            if (code == (int)TronzapErrorCode.BulkPriceChanged && result.ValueKind == JsonValueKind.Object)
+            {
+                return new TronzapBulkPriceChangedException(
+                    message, key, requestId, status, body, result, retryAfter, ResultMapper.BulkCalculation(result));
+            }
+
+            if (code == (int)TronzapErrorCode.BulkNoValidItems && result.ValueKind == JsonValueKind.Object)
+            {
+                return new TronzapBulkNoValidItemsException(
+                    message, key, requestId, status, body, result, retryAfter, ResultMapper.BulkRejectedRows(result));
+            }
+        }
+        catch (MappingException)
+        {
+        }
+
+        return new TronzapApiException(message, code, key, requestId, status, body, result, retryAfter);
+    }
+
     private static TronzapHttpException HttpError(HttpStatusCode status, string body, TimeSpan? retryAfter)
     {
         int code = (int)status;
@@ -83,9 +110,17 @@ internal static class ResponseDecoder
         {
             429 => new TronzapRateLimitException("Too many requests.", status, body, retryAfter),
             401 or 403 => new TronzapUnauthorizedException("Unauthorized.", status, body),
-            >= 500 => new TronzapServerException($"Server error (HTTP {code}).", status, body),
-            _ => new TronzapHttpException($"HTTP error {code}.", status, body),
+            >= 500 => new TronzapServerException($"Server error (HTTP {code}).", status, body, retryAfter),
+            _ => new TronzapHttpException($"HTTP error {code}.", status, body, retryAfter),
         };
+    }
+
+    private static TimeSpan? RetryAfterField(JsonElement root)
+    {
+        JsonElement value = JsonValues.Field(root, "retry_after");
+        return value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out long seconds) && seconds is >= 0 and <= int.MaxValue
+            ? TimeSpan.FromSeconds(seconds)
+            : null;
     }
 
     private static int? Code(JsonElement root)

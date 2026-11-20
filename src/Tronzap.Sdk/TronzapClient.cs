@@ -381,6 +381,145 @@ public sealed class TronzapClient : ITronzapClient
         return CallAsync("/v1/subscriptions/history", body, ResultMapper.SubscriptionHistory, cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public Task<BulkCalculation> BulkCalculateAsync(BulkCalculateRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w =>
+        {
+            w.WriteString("resource", ServiceType.Energy.ToWire());
+            w.WriteNumber("duration", request.Duration);
+            w.WriteStartArray("items");
+            foreach (BulkItem item in request.Items)
+            {
+                w.WriteStartObject();
+                w.WriteString("address", item.Address);
+                w.WriteNumber("amount", item.Amount);
+                w.WriteEndObject();
+            }
+
+            w.WriteEndArray();
+        });
+        return CallAsync("/v1/bulk/calculate", body, ResultMapper.BulkCalculation, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<BulkOrder> BulkCreateAsync(BulkCreateRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w =>
+        {
+            w.WriteString("id", request.Id);
+            if (request.Force)
+            {
+                w.WriteBoolean("force", true);
+            }
+
+            if (request.MaxPriceIncrease is { } percent)
+            {
+                w.WriteNumber("max_price_increase", percent);
+            }
+
+            if (request.WebhookUrl is not null)
+            {
+                w.WriteString("webhook_url", request.WebhookUrl);
+            }
+
+            if (request.ExternalId is not null)
+            {
+                w.WriteString("external_id", request.ExternalId);
+            }
+        });
+        return CallAsync("/v1/bulk/create", body, ResultMapper.BulkOrder, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<BulkOrder> BulkCheckAsync(BulkOrderRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w => WriteIds(w, request.Id, request.ExternalId));
+        return CallAsync("/v1/bulk/check", body, ResultMapper.BulkOrder, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<BulkHistory> GetBulkHistoryAsync(CancellationToken cancellationToken = default) =>
+        GetBulkHistoryAsync(new BulkHistoryRequest(), cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<BulkHistory> GetBulkHistoryAsync(BulkHistoryRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w =>
+        {
+            w.WriteNumber("page", request.Page);
+            w.WriteNumber("per_page", request.PerPage);
+        });
+        return CallAsync("/v1/bulk/history", body, ResultMapper.BulkHistory, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<string> BulkReportAsync(BulkReportRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        byte[] body = Json(w =>
+        {
+            WriteIds(w, request.Id, request.ExternalId);
+            if (request.Status is { } status)
+            {
+                w.WriteString("status", status.ToWire());
+            }
+        });
+
+        Response response = await SendAsync("/v1/bulk/report", body, cancellationToken).ConfigureAwait(false);
+        int code = (int)response.Status;
+        if (code is >= 200 and <= 299
+            && string.Equals(response.MediaType, "text/csv", StringComparison.OrdinalIgnoreCase))
+        {
+            return Encoding.UTF8.GetString(response.Body);
+        }
+
+        ResponseDecoder.Decode(response.Status, response.Body, response.RetryAfter, _ => true);
+        throw new TronzapInvalidResponseException(
+            "Expected a CSV report.", response.Status, Encoding.UTF8.GetString(response.Body), null);
+    }
+
+    /// <summary>
+    /// Checks the <c>X-Signature</c> header of a bulk order webhook. The body is a JSON object with the order's
+    /// <c>id</c>, <c>external_id</c> and <c>status</c>.
+    /// </summary>
+    /// <param name="body">The raw request body exactly as received.</param>
+    /// <param name="signature">The value of the <c>X-Signature</c> header, or <see langword="null"/>.</param>
+    /// <returns>Whether the signature matches the body and your API secret.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="body"/> is <see langword="null"/>.</exception>
+    public bool VerifyWebhookSignature(byte[] body, string? signature)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        if (signature is null)
+        {
+            return false;
+        }
+
+        byte[] expected = Encoding.ASCII.GetBytes(Sign(body));
+        byte[] actual = Encoding.UTF8.GetBytes(signature.Trim().ToLowerInvariant());
+        return CryptographicOperations.FixedTimeEquals(expected, actual);
+    }
+
+    /// <summary>Checks the <c>X-Signature</c> header of a bulk order webhook whose body was read as text.</summary>
+    /// <param name="body">The raw request body exactly as received.</param>
+    /// <param name="signature">The value of the <c>X-Signature</c> header, or <see langword="null"/>.</param>
+    /// <returns>Whether the signature matches the body and your API secret.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="body"/> is <see langword="null"/>.</exception>
+    public bool VerifyWebhookSignature(string body, string? signature)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        return VerifyWebhookSignature(Encoding.UTF8.GetBytes(body), signature);
+    }
+
     internal static string NormalizeBaseUrl(string? baseUrl)
     {
         string normalized = baseUrl?.Trim() ?? "";
@@ -465,7 +604,26 @@ public sealed class TronzapClient : ITronzapClient
         return CallAsync(endpoint, body, ResultMapper.Subscription, cancellationToken);
     }
 
+    private static void WriteIds(Utf8JsonWriter w, string? id, string? externalId)
+    {
+        if (id is not null)
+        {
+            w.WriteString("id", id);
+        }
+
+        if (externalId is not null)
+        {
+            w.WriteString("external_id", externalId);
+        }
+    }
+
     private async Task<T> CallAsync<T>(string endpoint, byte[] body, Func<JsonElement, T> map, CancellationToken cancellationToken)
+    {
+        Response response = await SendAsync(endpoint, body, cancellationToken).ConfigureAwait(false);
+        return ResponseDecoder.Decode(response.Status, response.Body, response.RetryAfter, map);
+    }
+
+    private async Task<Response> SendAsync(string endpoint, byte[] body, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -483,17 +641,17 @@ public sealed class TronzapClient : ITronzapClient
             deadline.CancelAfter(_timeout);
         }
 
-        HttpStatusCode status;
-        TimeSpan? retryAfter;
-        byte[] responseBody;
         try
         {
             using HttpResponseMessage response = await _httpClient
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token)
                 .ConfigureAwait(false);
-            status = response.StatusCode;
-            retryAfter = RetryAfter(response.Headers.RetryAfter);
-            responseBody = await ReadBodyAsync(response, deadline.Token).ConfigureAwait(false);
+            byte[] responseBody = await ReadBodyAsync(response, deadline.Token).ConfigureAwait(false);
+            return new Response(
+                response.StatusCode,
+                RetryAfter(response.Headers.RetryAfter),
+                response.Content.Headers.ContentType?.MediaType,
+                responseBody);
         }
         catch (OperationCanceledException e) when (cancellationToken.IsCancellationRequested)
         {
@@ -514,8 +672,6 @@ public sealed class TronzapClient : ITronzapClient
         {
             throw NetworkErrors.Classify(e);
         }
-
-        return ResponseDecoder.Decode(status, responseBody, retryAfter, map);
     }
 
     private static async Task<byte[]> ReadBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
@@ -596,4 +752,6 @@ public sealed class TronzapClient : ITronzapClient
         };
         return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
     }
+
+    private sealed record Response(HttpStatusCode Status, TimeSpan? RetryAfter, string? MediaType, byte[] Body);
 }

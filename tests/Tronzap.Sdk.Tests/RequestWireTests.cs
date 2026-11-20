@@ -12,6 +12,8 @@ public sealed class RequestWireTests
 {
     private const string TransactionResult = """{"id":"tx-1","service":"energy","params":{"address":"T","amounts":{"energy":65000},"duration":1},"status":"new","amount":5.47}""";
     private const string AmlResult = """{"id":"aml-1","type":"address","address":"T","network":"TRX","status":"pending"}""";
+    private const string BulkCalculationResult = """{"id":"calc-1","status":"draft","resource":"energy","duration":1}""";
+    private const string BulkOrderResult = """{"id":"bulk-1","status":"processing","resource":"energy","duration":1}""";
     private const string SubscriptionResult = """{"id":"sub-1","subscription_id":"unlimited_energy","status":"active"}""";
 
     public static TheoryData<string, string, string, string> Calls => new()
@@ -54,6 +56,14 @@ public sealed class RequestWireTests
         { "StopSubscriptionByExternalId", "/v1/subscription/stop", """{"external_id":"ext-1"}""", SubscriptionResult },
         { "SubscriptionHistoryDefault", "/v1/subscriptions/history", """{"page":1,"per_page":10}""", """{"page":1,"per_page":10,"total":0,"items":[]}""" },
         { "SubscriptionHistoryFiltered", "/v1/subscriptions/history", """{"page":2,"per_page":50,"status":"active"}""", """{"page":2,"per_page":50,"total":0,"items":[]}""" },
+        { "BulkCalculate", "/v1/bulk/calculate", """{"resource":"energy","duration":1,"items":[{"address":"TA","amount":65000},{"address":"abc","amount":0}]}""", BulkCalculationResult },
+        { "BulkCalculateDay", "/v1/bulk/calculate", """{"resource":"energy","duration":24,"items":[{"address":"TA","amount":131000}]}""", BulkCalculationResult },
+        { "BulkCreate", "/v1/bulk/create", """{"id":"calc-1"}""", BulkOrderResult },
+        { "BulkCreateFull", "/v1/bulk/create", """{"id":"calc-1","force":true,"max_price_increase":0,"webhook_url":"https://example.com/hook","external_id":"order-42"}""", BulkOrderResult },
+        { "BulkCheckById", "/v1/bulk/check", """{"id":"bulk-1"}""", BulkOrderResult },
+        { "BulkCheckByExternalId", "/v1/bulk/check", """{"external_id":"order-42"}""", BulkOrderResult },
+        { "BulkHistoryDefault", "/v1/bulk/history", """{"page":1,"per_page":10}""", """{"page":1,"per_page":10,"total":0,"items":[]}""" },
+        { "BulkHistoryPage", "/v1/bulk/history", """{"page":2,"per_page":50}""", """{"page":2,"per_page":50,"total":0,"items":[]}""" },
     };
 
     private static readonly Dictionary<string, Func<TronzapClient, Task>> Invocations = new()
@@ -102,6 +112,16 @@ public sealed class RequestWireTests
         ["StopSubscriptionByExternalId"] = c => c.StopSubscriptionAsync(SubscriptionRequest.ByExternalId("ext-1"), Ct),
         ["SubscriptionHistoryDefault"] = c => c.GetSubscriptionHistoryAsync(Ct),
         ["SubscriptionHistoryFiltered"] = c => c.GetSubscriptionHistoryAsync(new() { Page = 2, PerPage = 50, Status = SubscriptionStatus.Active }, Ct),
+        ["BulkCalculate"] = c => c.BulkCalculateAsync(
+            new() { Items = [new() { Address = "TA", Amount = 65000 }, new() { Address = "abc", Amount = 0 }] }, Ct),
+        ["BulkCalculateDay"] = c => c.BulkCalculateAsync(new() { Items = [new() { Address = "TA", Amount = 131000 }], Duration = 24 }, Ct),
+        ["BulkCreate"] = c => c.BulkCreateAsync(new() { Id = "calc-1" }, Ct),
+        ["BulkCreateFull"] = c => c.BulkCreateAsync(
+            new() { Id = "calc-1", ExternalId = "order-42", Force = true, MaxPriceIncrease = 0, WebhookUrl = "https://example.com/hook" }, Ct),
+        ["BulkCheckById"] = c => c.BulkCheckAsync(BulkOrderRequest.ById("bulk-1"), Ct),
+        ["BulkCheckByExternalId"] = c => c.BulkCheckAsync(BulkOrderRequest.ByExternalId("order-42"), Ct),
+        ["BulkHistoryDefault"] = c => c.GetBulkHistoryAsync(Ct),
+        ["BulkHistoryPage"] = c => c.GetBulkHistoryAsync(new() { Page = 2, PerPage = 50 }, Ct),
     };
 
     [Theory]

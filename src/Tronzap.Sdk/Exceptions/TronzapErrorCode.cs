@@ -53,6 +53,35 @@ public enum TronzapErrorCode
     /// <summary>Invalid bandwidth amount.</summary>
     InvalidBandwidthAmount = 50,
 
+    /// <summary>Bulk order not found: check the ID or external ID.</summary>
+    BulkNotFound = 90,
+
+    /// <summary>The bulk calculation expired: calculate the order again.</summary>
+    BulkExpired = 91,
+
+    /// <summary>
+    /// The price changed since the bulk calculation, so the order was not started. The new calculation arrives in
+    /// <see cref="TronzapBulkPriceChangedException"/>: confirm the new total, then start the order with its ID.
+    /// </summary>
+    BulkPriceChanged = 92,
+
+    /// <summary>Too many rows in a bulk order: send at most 10 000.</summary>
+    BulkTooManyItems = 93,
+
+    /// <summary>No row of a bulk order is valid. The rejected rows arrive in <see cref="TronzapBulkNoValidItemsException"/>.</summary>
+    BulkNoValidItems = 94,
+
+    /// <summary>The resource is not supported in bulk orders.</summary>
+    BulkResourceNotSupported = 95,
+
+    /// <summary>The request body is too large.</summary>
+    PayloadTooLarge = 96,
+
+    /// <summary>
+    /// Too many requests: wait for <see cref="TronzapApiException.RetryAfter"/>, if the API sent it, before retrying.
+    /// </summary>
+    RateLimited = 429,
+
     /// <summary>Internal server error. Contact support if it persists.</summary>
     InternalServerError = 500,
 }

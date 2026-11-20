@@ -83,9 +83,9 @@ dotnet run examples/BasicUsage.cs
 ```
 
 Por padrão ele apenas lê e não gasta nada. Com `TRONZAP_ALLOW_PURCHASES=1` ele
-também executa os endpoints que criam transações e verificações AML, que debitam o
-saldo da conta. Veja o comentário no início do arquivo para as demais variáveis
-opcionais.
+também executa os endpoints que criam transações, verificações AML e um pedido em
+massa de um endereço, que debitam o saldo da conta. Veja o comentário no início do
+arquivo para as demais variáveis opcionais.
 
 ## Configuração
 
@@ -181,6 +181,12 @@ o cliente por um fake nos seus próprios testes.
 | `CheckSubscriptionAsync(request)` | `/v1/subscription/check` | Status de uma assinatura, por id ou id externo |
 | `StopSubscriptionAsync(request)` | `/v1/subscription/stop` | Parar uma assinatura |
 | `GetSubscriptionHistoryAsync()` / `GetSubscriptionHistoryAsync(request)` | `/v1/subscriptions/history` | Histórico paginado de assinaturas |
+| `BulkCalculateAsync(request)` | `/v1/bulk/calculate` | Validar e calcular até 10 000 linhas de um pedido de energia em massa |
+| `BulkCreateAsync(request)` | `/v1/bulk/create` | Iniciar um pedido em massa a partir de um cálculo |
+| `BulkCheckAsync(request)` | `/v1/bulk/check` | Status e progresso de um pedido em massa, por id ou id externo |
+| `GetBulkHistoryAsync()` / `GetBulkHistoryAsync(request)` | `/v1/bulk/history` | Histórico paginado de pedidos em massa |
+| `BulkReportAsync(request)` | `/v1/bulk/report` | Relatório por endereço de um pedido em massa em CSV |
+| `VerifyWebhookSignature(body, signature)` | — | Verificar a assinatura do webhook de um pedido em massa |
 
 Todos os métodos são assíncronos e aceitam um `CancellationToken` opcional como
 último parâmetro.
@@ -189,9 +195,9 @@ Os parâmetros são records imutáveis em `Tronzap.Sdk.Requests`, preenchidos co
 inicializadores de objeto; os valores obrigatórios são membros `required`. Uma
 requisição é validada antes de ser enviada, então uma requisição inválida lança
 `ArgumentException` e nunca chega à API. Os padrões coincidem com a API:
-`Duration` é 1 hora e os históricos AML e de assinaturas começam na página 1
-com 10 itens. Em `StartSubscriptionRequest`, `DurationDays` ou `TransactionsLimit`
-igual a zero significa sem limite.
+`Duration` é 1 hora e os históricos AML, de assinaturas e de pedidos em massa
+começam na página 1 com 10 itens. Em `StartSubscriptionRequest`, `DurationDays` ou
+`TransactionsLimit` igual a zero significa sem limite.
 
 Os resultados são records imutáveis em `Tronzap.Sdk.Responses`. As coleções nunca
 são `null`, e os valores que a API pode omitir são nullable.
@@ -320,6 +326,73 @@ retorna em vez disso os contadores de uso `TransactionsUsed`, `EnergyUsed` e
 inicial do plano. Uma assinatura com limite de transações não pode ser parada
 (`TronzapErrorCode.CannotStopSubscription`).
 
+### Pedidos em massa
+
+Compre energia para até 10 000 endereços em um único pedido. `BulkCalculateAsync`
+valida e calcula as linhas e retorna um cálculo válido por 10 minutos; nada é
+cobrado. Linhas inválidas não fazem a requisição falhar: elas voltam em `Rejected`
+com o número da linha. `BulkCreateAsync` inicia o pedido; cada endereço é cobrado
+quando é processado, e endereços não ativados são pulados sem cobrança.
+
+Se o preço mudou desde o cálculo, `BulkCreateAsync` não inicia o pedido e lança
+`TronzapBulkPriceChangedException` (código `BulkPriceChanged`). Seu `Calculation` é
+o novo cálculo: confirme o novo total e inicie-o pelo `Id`.
+
+```csharp
+BulkCalculation calculation = await client.BulkCalculateAsync(new BulkCalculateRequest
+{
+    Items =
+    [
+        new BulkItem { Address = "TRecipientAddress1", Amount = 65000 },
+        new BulkItem { Address = "TRecipientAddress2", Amount = 131000 },
+    ],
+});
+foreach (BulkRejectedRow row in calculation.Rejected)
+{
+    Console.WriteLine($"row {row.Row}: {row.Reason}");
+}
+
+BulkOrder order;
+try
+{
+    order = await client.BulkCreateAsync(new BulkCreateRequest
+    {
+        Id = calculation.Id,
+        ExternalId = "order-42",
+        WebhookUrl = "https://example.com/tronzap/bulk",
+    });
+}
+catch (TronzapBulkPriceChangedException e)
+{
+    BulkCalculation newCalculation = e.Calculation; // confirme o novo total e inicie-o
+    order = await client.BulkCreateAsync(new BulkCreateRequest { Id = newCalculation.Id, ExternalId = "order-42" });
+}
+
+order = await client.BulkCheckAsync(BulkOrderRequest.ByExternalId("order-42")); // consulte até Completed, Partial ou Failed
+string csv = await client.BulkReportAsync(BulkReportRequest.ById(order.Id));    // row,address,amount,status,reason,charged,transaction_id
+BulkHistory history = await client.GetBulkHistoryAsync(new BulkHistoryRequest { Page = 1, PerPage = 10 });
+```
+
+Com `WebhookUrl`, a API envia um único `POST` quando o pedido se torna final.
+Verifique o cabeçalho `X-Signature` com o corpo bruto antes de confiar na
+requisição, por exemplo no ASP.NET Core (`AddTronzap` também registra
+`TronzapClient`):
+
+```csharp
+app.MapPost("/tronzap/bulk", async (HttpRequest request, TronzapClient client) =>
+{
+    using var body = new MemoryStream();
+    await request.Body.CopyToAsync(body);
+    if (!client.VerifyWebhookSignature(body.ToArray(), request.Headers["X-Signature"]))
+    {
+        return Results.Unauthorized();
+    }
+
+    // {"id":"01kb2m5x9qj4v8n3c7d6e5f4g3","external_id":"order-42","status":"partial"}
+    return Results.Ok();
+});
+```
+
 ## Tratamento de erros
 
 Toda falha de uma chamada à API é uma `TronzapException`. Capture uma subclasse
@@ -328,8 +401,10 @@ para tratar um tipo específico de falha:
 ```
 TronzapException
 ├── TronzapApiException                — a API respondeu com um código diferente de zero
+│   ├── TronzapBulkPriceChangedException — código 92, com o novo cálculo
+│   └── TronzapBulkNoValidItemsException — código 94, com as linhas rejeitadas
 ├── TronzapHttpException               — resposta não 2xx sem payload da API
-│   ├── TronzapRateLimitException      — HTTP 429
+│   ├── TronzapRateLimitException      — HTTP 429 sem resposta da API
 │   ├── TronzapUnauthorizedException   — HTTP 401 ou 403
 │   └── TronzapServerException         — HTTP 5xx
 ├── TronzapInvalidResponseException    — resposta 2xx que o SDK não conseguiu ler
@@ -342,8 +417,7 @@ TronzapException
 `TronzapApiException`, `TronzapHttpException` e `TronzapInvalidResponseException`
 trazem o status HTTP (`StatusCode`) e o corpo bruto da resposta (`ResponseBody`).
 `TronzapApiException` também traz o código de erro da API, a chave do erro e o ID
-da requisição. `TronzapRateLimitException.RetryAfter` contém o intervalo de
-`Retry-After` quando a API o envia.
+da requisição.
 
 Duas falhas não são `TronzapException`: argumentos inválidos lançam
 `ArgumentException` antes de qualquer envio, e cancelar o `CancellationToken`
@@ -379,7 +453,7 @@ catch (TronzapApiException e)
 }
 catch (TronzapRateLimitException e)
 {
-    // Aguarde e tente novamente, após e.RetryAfter se a API o enviou.
+    // Aguarde e tente novamente, após e.RetryAfter se o servidor o enviou.
 }
 catch (TronzapUnauthorizedException)
 {
@@ -403,6 +477,22 @@ com status 2xx e outras com 4xx ou 5xx, então um payload legível com código
 diferente de zero é sempre informado como `TronzapApiException`, nunca como
 `TronzapHttpException`.
 
+`TronzapApiException.Result` é o `result` que a API enviou com o erro, como
+`JsonElement`. O SDK lê os dados de `BulkPriceChanged` e `BulkNoValidItems` em
+`TronzapBulkPriceChangedException.Calculation` e
+`TronzapBulkNoValidItemsException.Rejected`. Um limite de requisições informado pela
+API é um `TronzapApiException` com `RateLimited`; `TronzapRateLimitException` é
+apenas um HTTP 429 sem resposta da API, p. ex. de um proxy. Os dois, como os demais
+`TronzapHttpException`, trazem `RetryAfter`, `null` quando o servidor não informou
+quanto esperar:
+
+```csharp
+catch (TronzapApiException e) when (e.ErrorCode == TronzapErrorCode.RateLimited)
+{
+    await Task.Delay(e.RetryAfter ?? TimeSpan.FromMinutes(1), cancellationToken);
+}
+```
+
 ### Códigos de erro da API
 
 | Código | Constante | Descrição |
@@ -421,6 +511,14 @@ diferente de zero é sempre informado como `TronzapApiException`, nunca como
 | 30 | `AmlCheckNotFound` | Verificação AML não encontrada |
 | 35 | `ServiceNotAvailable` | Serviço indisponível |
 | 50 | `InvalidBandwidthAmount` | Quantidade de largura de banda inválida |
+| 90 | `BulkNotFound` | Pedido em massa não encontrado |
+| 91 | `BulkExpired` | O cálculo expirou, calcule novamente |
+| 92 | `BulkPriceChanged` | O preço mudou; o novo cálculo está em `TronzapBulkPriceChangedException` |
+| 93 | `BulkTooManyItems` | Mais de 10 000 linhas |
+| 94 | `BulkNoValidItems` | Nenhuma linha válida; elas estão em `TronzapBulkNoValidItemsException` |
+| 95 | `BulkResourceNotSupported` | Apenas energia pode ser pedida em massa |
+| 96 | `PayloadTooLarge` | Corpo da requisição grande demais (HTTP 413) |
+| 429 | `RateLimited` | Requisições demais; aguarde `RetryAfter`, quando informado |
 | 500 | `InternalServerError` | Erro interno do servidor: contate o suporte |
 
 As constantes são valores do enum `TronzapErrorCode`. Um código que esta versão do

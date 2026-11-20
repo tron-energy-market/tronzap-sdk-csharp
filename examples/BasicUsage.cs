@@ -11,9 +11,11 @@
 //   export TRONZAP_TRANSACTION_ID=id             # optional
 //   export TRONZAP_AML_CHECK_ID=id               # optional
 //   export TRONZAP_SUBSCRIPTION_ID=id            # optional
+//   export TRONZAP_BULK_ID=id                    # optional
 //   dotnet run examples/BasicUsage.cs
 //
-// Setting TRONZAP_ALLOW_PURCHASES=1 additionally exercises the endpoints that create transactions and AML checks.
+// Setting TRONZAP_ALLOW_PURCHASES=1 additionally exercises the endpoints that create transactions, AML checks and a
+// one-address bulk order.
 // Those DEBIT THE ACCOUNT BALANCE. It is meant for verifying an integration against a development environment, and
 // it also needs TRONZAP_ADDRESS.
 //
@@ -125,6 +127,16 @@ await Step("GetSubscriptionHistory", async () =>
     }
 });
 
+await Step("GetBulkHistory", async () =>
+{
+    BulkHistory history = await client.GetBulkHistoryAsync(new BulkHistoryRequest { PerPage = 3 }, ct);
+    Console.WriteLine($"  page {history.Page}, {history.Items.Count} of {history.Total} bulk order(s)");
+    foreach (BulkOrder order in history.Items)
+    {
+        PrintBulkOrder(order);
+    }
+});
+
 string? address = Env("TRONZAP_ADDRESS");
 await OptionalStep("GetAddressInfo", address, async value =>
 {
@@ -153,6 +165,18 @@ await OptionalStep("CheckAmlStatus", Env("TRONZAP_AML_CHECK_ID"), async value =>
 });
 await OptionalStep("CheckSubscription", Env("TRONZAP_SUBSCRIPTION_ID"),
     async value => PrintSubscription(await client.CheckSubscriptionAsync(SubscriptionRequest.ById(value), ct)));
+await OptionalStep("BulkCalculate", address, async value => PrintBulkCalculation(await client.BulkCalculateAsync(
+    new BulkCalculateRequest { Items = [new BulkItem { Address = value, Amount = Energy }, new BulkItem { Address = "not-an-address", Amount = Energy }] },
+    ct)));
+await OptionalStep("BulkCheck, BulkReport", Env("TRONZAP_BULK_ID"), async value =>
+{
+    PrintBulkOrder(await client.BulkCheckAsync(BulkOrderRequest.ById(value), ct));
+    string report = await client.BulkReportAsync(BulkReportRequest.ById(value), ct);
+    foreach (string line in report.Split('\n', StringSplitOptions.RemoveEmptyEntries).Take(6))
+    {
+        Console.WriteLine($"  {line}");
+    }
+});
 
 if (Env("TRONZAP_ALLOW_PURCHASES") != "1")
 {
@@ -192,6 +216,26 @@ else
     {
         AmlCheck check = await client.CreateAmlCheckAsync(AmlCheckRequest.ForAddress("TRX", address), ct);
         Console.WriteLine($"  AML check {check.Id} is {check.Status}");
+    });
+
+    await Step("BulkCalculate, BulkCreate, BulkCheck", async () =>
+    {
+        BulkCalculation calculation = await client.BulkCalculateAsync(
+            new BulkCalculateRequest { Items = [new BulkItem { Address = address, Amount = Energy }] }, ct);
+        PrintBulkCalculation(calculation);
+        BulkOrder order;
+        try
+        {
+            order = await client.BulkCreateAsync(new BulkCreateRequest { Id = calculation.Id, ExternalId = $"{runId}-bulk" }, ct);
+        }
+        catch (TronzapBulkPriceChangedException e)
+        {
+            Console.WriteLine($"  price changed, new total {Money(e.Calculation.TotalAmount)}");
+            order = await client.BulkCreateAsync(new BulkCreateRequest { Id = e.Calculation.Id, ExternalId = $"{runId}-bulk" }, ct);
+        }
+
+        PrintBulkOrder(order);
+        PrintBulkOrder(await client.BulkCheckAsync(BulkOrderRequest.ByExternalId($"{runId}-bulk"), ct));
     });
 
     string? subscriptionPlan = Env("TRONZAP_SUBSCRIPTION_PLAN");
@@ -263,6 +307,18 @@ static void Print(Transaction tx) =>
 
 static void PrintSubscription(Subscription subscription) =>
     Console.WriteLine($"  {subscription.Id} {subscription.SubscriptionId} {subscription.Status}, address {(subscription.Address.Length > 0 ? subscription.Address : "-")}, created {Describe(subscription.CreatedAt)}, expires {Describe(subscription.ExpireAt)}, stopped {Describe(subscription.StoppedAt)}");
+
+static void PrintBulkCalculation(BulkCalculation calculation)
+{
+    Console.WriteLine($"  {calculation.Id} {calculation.Status}: {calculation.Accepted} accepted, {calculation.RejectedCount} rejected, total {Money(calculation.TotalAmount)}, expires {Describe(calculation.ExpiresAt)}");
+    foreach (BulkRejectedRow row in calculation.Rejected)
+    {
+        Console.WriteLine($"  rejected row {row.Row} {row.Address}: {row.Reason}");
+    }
+}
+
+static void PrintBulkOrder(BulkOrder order) =>
+    Console.WriteLine($"  {order.Id} {order.Status}: {order.Processed}/{order.Total} processed, {order.Delivered} delivered, {order.Failed} failed, {order.InReview} in review, {order.Skipped} skipped, charged {Money(order.ChargedAmount)} of {Money(order.TotalAmount)}");
 
 static string Describe(Timestamp? timestamp) => timestamp switch
 {

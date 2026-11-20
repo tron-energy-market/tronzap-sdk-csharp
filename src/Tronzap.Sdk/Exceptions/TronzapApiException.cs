@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Text.Json;
 
 namespace Tronzap.Sdk.Exceptions;
 
@@ -24,6 +25,28 @@ public class TronzapApiException : TronzapException
         string? requestId,
         HttpStatusCode statusCode,
         string responseBody)
+        : this(message, code, errorKey, requestId, statusCode, responseBody, null, null)
+    {
+    }
+
+    /// <summary>Creates an exception.</summary>
+    /// <param name="message">The error message from the API.</param>
+    /// <param name="code">The numeric error code.</param>
+    /// <param name="errorKey">The error key, or <see langword="null"/>.</param>
+    /// <param name="requestId">The request ID, or <see langword="null"/>.</param>
+    /// <param name="statusCode">The HTTP status of the response.</param>
+    /// <param name="responseBody">The raw response body.</param>
+    /// <param name="result">The <c>result</c> field sent with the error, or <see langword="null"/>.</param>
+    /// <param name="retryAfter">How long the API asked to wait, or <see langword="null"/>.</param>
+    public TronzapApiException(
+        string message,
+        int code,
+        string? errorKey,
+        string? requestId,
+        HttpStatusCode statusCode,
+        string responseBody,
+        JsonElement? result,
+        TimeSpan? retryAfter)
         : base(message)
     {
         Code = code;
@@ -31,6 +54,8 @@ public class TronzapApiException : TronzapException
         RequestId = requestId;
         StatusCode = statusCode;
         ResponseBody = responseBody ?? "";
+        Result = result?.Clone();
+        RetryAfter = retryAfter;
     }
 
     /// <summary>Creates an exception.</summary>
@@ -77,4 +102,19 @@ public class TronzapApiException : TronzapException
 
     /// <summary>The raw response body.</summary>
     public string ResponseBody { get; }
+
+    /// <summary>
+    /// The <c>result</c> field the API sent along with the error, or <see langword="null"/> when it sent none. The new
+    /// calculation of <see cref="TronzapErrorCode.BulkPriceChanged"/> and the rejected rows of
+    /// <see cref="TronzapErrorCode.BulkNoValidItems"/> arrive here, and typed in
+    /// <see cref="TronzapBulkPriceChangedException"/> and <see cref="TronzapBulkNoValidItemsException"/>.
+    /// </summary>
+    public JsonElement? Result { get; }
+
+    /// <summary>
+    /// How long to wait before retrying, from the <c>Retry-After</c> header (seconds or an HTTP date) or the
+    /// <c>retry_after</c> field, or <see langword="null"/> when the API sent neither. A rate limit reported by the API
+    /// arrives with <see cref="TronzapErrorCode.RateLimited"/>.
+    /// </summary>
+    public TimeSpan? RetryAfter { get; }
 }

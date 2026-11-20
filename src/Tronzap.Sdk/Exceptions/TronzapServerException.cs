@@ -16,6 +16,16 @@ public class TronzapServerException : TronzapHttpException
     }
 
     /// <summary>Creates an exception.</summary>
+    /// <param name="message">The error message.</param>
+    /// <param name="statusCode">The HTTP status of the response.</param>
+    /// <param name="responseBody">The raw response body.</param>
+    /// <param name="retryAfter">How long the server asked to wait, or <see langword="null"/>.</param>
+    public TronzapServerException(string message, HttpStatusCode statusCode, string responseBody, TimeSpan? retryAfter)
+        : base(message, statusCode, responseBody, retryAfter)
+    {
+    }
+
+    /// <summary>Creates an exception.</summary>
     public TronzapServerException()
     {
     }

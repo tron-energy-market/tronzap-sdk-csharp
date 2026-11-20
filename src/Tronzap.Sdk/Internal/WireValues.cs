@@ -48,6 +48,16 @@ internal static class WireValues
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
     };
 
+    public static string ToWire(this BulkRowStatus value) => value switch
+    {
+        BulkRowStatus.Delivered => "delivered",
+        BulkRowStatus.Failed => "failed",
+        BulkRowStatus.InReview => "in_review",
+        BulkRowStatus.Skipped => "skipped",
+        BulkRowStatus.Pending => "pending",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+    };
+
     public static ServiceType ParseService(string value) => value switch
     {
         "energy" => ServiceType.Energy,
@@ -106,5 +116,15 @@ internal static class WireValues
         "medium" => AmlRiskLevel.Medium,
         "high" => AmlRiskLevel.High,
         _ => AmlRiskLevel.Unknown,
+    };
+
+    public static BulkStatus ParseBulkStatus(string value) => value switch
+    {
+        "draft" => BulkStatus.Draft,
+        "processing" => BulkStatus.Processing,
+        "completed" => BulkStatus.Completed,
+        "partial" => BulkStatus.Partial,
+        "failed" => BulkStatus.Failed,
+        _ => BulkStatus.Unknown,
     };
 }

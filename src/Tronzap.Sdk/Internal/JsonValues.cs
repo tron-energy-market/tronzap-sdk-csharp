@@ -70,6 +70,18 @@ internal static class JsonValues
         return values.AsReadOnly();
     }
 
+    public static IReadOnlyDictionary<string, int> Int32Map(JsonElement obj, string field)
+    {
+        JsonElement element = Object(Field(obj, field), field);
+        var values = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            values[property.Name] = Int32(element, property.Name);
+        }
+
+        return values.AsReadOnly();
+    }
+
     public static string Text(JsonElement obj, string field)
     {
         JsonElement element = Field(obj, field);

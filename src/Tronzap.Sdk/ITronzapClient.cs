@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Tronzap.Sdk.Exceptions;
+using Tronzap.Sdk.Models;
 using Tronzap.Sdk.Requests;
 using Tronzap.Sdk.Responses;
 
@@ -203,4 +204,70 @@ public interface ITronzapClient
     /// <exception cref="ArgumentException">The request is invalid.</exception>
     /// <exception cref="TronzapException">The request failed.</exception>
     Task<SubscriptionHistory> GetSubscriptionHistoryAsync(SubscriptionHistoryRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates and prices the rows of a bulk energy order. Nothing is charged, and the calculation is valid for 10
+    /// minutes. Invalid rows do not fail the request: they come back in <see cref="BulkCalculation.Rejected"/> with
+    /// their row number. When no row is valid, the request fails with <see cref="TronzapBulkNoValidItemsException"/>.
+    /// </summary>
+    /// <param name="request">The rows and the rental duration.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The calculation; start it with <see cref="BulkCreateAsync"/>.</returns>
+    /// <exception cref="ArgumentException">The request has no rows, a row is <see langword="null"/> or has no address, or the duration is not positive.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<BulkCalculation> BulkCalculateAsync(BulkCalculateRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Starts a bulk order from a calculation. Nothing is charged here: each address is charged when it is processed,
+    /// and an address that is not activated is skipped without a charge. Starting an order again with the same
+    /// calculation ID or external ID returns the order already started.
+    /// </summary>
+    /// <remarks>
+    /// If the price of any row changed since the calculation, the order is not started and the request fails with
+    /// <see cref="TronzapBulkPriceChangedException"/>: confirm the new total of its
+    /// <see cref="TronzapBulkPriceChangedException.Calculation"/>, then start the order with the new calculation ID.
+    /// </remarks>
+    /// <param name="request">The calculation ID and the order options.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The started order.</returns>
+    /// <exception cref="ArgumentException">The request is invalid.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<BulkOrder> BulkCreateAsync(BulkCreateRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the state and progress counters of a bulk order. An unknown order fails with
+    /// <see cref="TronzapErrorCode.BulkNotFound"/>.
+    /// </summary>
+    /// <param name="request">The bulk order ID, external ID, or both.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The bulk order.</returns>
+    /// <exception cref="ArgumentException">Neither ID is set, or one is blank.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<BulkOrder> BulkCheckAsync(BulkOrderRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the first page of your bulk orders, ten per page, newest first.</summary>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The first page of bulk orders.</returns>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<BulkHistory> GetBulkHistoryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Returns one page of your bulk orders, newest first.</summary>
+    /// <param name="request">The page to return.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The page of bulk orders.</returns>
+    /// <exception cref="ArgumentException">The request is invalid.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<BulkHistory> GetBulkHistoryAsync(BulkHistoryRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Downloads the per-address report of a bulk order as CSV with a header line. The columns are <c>row</c>,
+    /// <c>address</c>, <c>amount</c>, <c>status</c>, <c>reason</c>, <c>charged</c> and <c>transaction_id</c>; rows
+    /// rejected by the calculation are not included.
+    /// </summary>
+    /// <param name="request">The bulk order ID, external ID, or both, and an optional <see cref="BulkRowStatus"/> to keep.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The CSV report.</returns>
+    /// <exception cref="ArgumentException">The request is invalid.</exception>
+    /// <exception cref="TronzapException">The request failed.</exception>
+    Task<string> BulkReportAsync(BulkReportRequest request, CancellationToken cancellationToken = default);
 }
